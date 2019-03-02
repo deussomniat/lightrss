@@ -14,3 +14,11 @@ A simple qt based rss feed reader
 
 ## run
 * ./lightrss
+
+## itunes
+lightrss supports itunes podcast urls in the format below.
+
+https://itunes.apple.com/us/podcast/mysterious-universe/id329937558
+
+You can enter those urls in the text box, click the + icon and
+it will automatically be converted to the original rss url.
