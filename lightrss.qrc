@@ -11,6 +11,7 @@
         <file>images/copy_feed48.png</file>
         <file>images/copy_item48.png</file>
         <file>images/copy_enclosure48.png</file>
+        <file>images/rss48.png</file>
         <file>templates/catalog.xml</file>
     </qresource>
 </RCC>

@@ -65,8 +65,10 @@ lightrss::lightrss(QWidget *parent)
     loadFeeds();
     connectEvents();
 
-    setFixedWidth(1034);
+    setMinimumWidth(1034);
     setMinimumHeight(600);
+    setWindowTitle("lightrss");
+    setWindowIcon(QIcon(":/images/rss48.png"));
 }
 
 lightrss::~lightrss()
