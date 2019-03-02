@@ -1,0 +1,16 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/add48.png</file>
+        <file>images/update48.png</file>
+        <file>images/back48.png</file>
+        <file>images/delete48.png</file>
+        <file>images/rename48.png</file>
+        <file>images/image48.png</file>
+        <file>images/feed48.png</file>
+        <file>images/save48.png</file>
+        <file>images/copy_feed48.png</file>
+        <file>images/copy_item48.png</file>
+        <file>images/copy_enclosure48.png</file>
+        <file>templates/catalog.xml</file>
+    </qresource>
+</RCC>
