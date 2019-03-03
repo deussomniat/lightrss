@@ -249,7 +249,13 @@ void lightrss::addFeed()
     if (urlStr.contains("itunes.apple.com") &&
         urlStr.contains("/podcast/")) {
         qDebug() << "itunes url detected!";
-        QString id = urlStr.replace(QRegExp("^.+/id|[^0-9]+$"), "");
+        QString id = urlStr.replace(QRegExp("^.+/id|\\?.*$"), "");
+        if (!id.contains(QRegExp("[^0-9]"))) {
+            qDebug() << tr("using itunes id %1").arg(id);
+        } else {
+            qDebug() << tr("detected non-numeric characters in id %1").arg(id);
+            return;
+        }
         urlStr = tr("https://itunes.apple.com/lookup?id=%1").arg(id);
     }
 
