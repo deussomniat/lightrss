@@ -1233,8 +1233,10 @@ void lightrss::hideEvent(QHideEvent *event)
 void lightrss::saveSettings()
 {
     QSettings settings("lightrss", "lightrss");
-    settings.setValue("settings/winWidth", width());
-    settings.setValue("settings/winHeight", height());
+    settings.setValue("settings/winWidth", geometry().width());
+    settings.setValue("settings/winHeight", geometry().height());
+    settings.setValue("settings/winX", geometry().x());
+    settings.setValue("settings/winY", geometry().y());
 }
 
 void lightrss::importSettings()
@@ -1242,4 +1244,6 @@ void lightrss::importSettings()
     QSettings settings("lightrss", "lightrss");
     resize(settings.value("settings/winWidth").toInt(),
            settings.value("settings/winHeight").toInt());
+    move(settings.value("settings/winX").toInt(),
+         settings.value("settings/winY").toInt());
 }
