@@ -124,6 +124,8 @@ private:
     QString convertDuration(QString duration);
     QString getFeedTitle(const QString &filename);
     QString getFeedTitleForImage(const QString &url);
+    void saveSettings();
+    void importSettings();
 
     void startDownload(const QUrl &url);
     QString getFileName(const QUrl &url);
@@ -152,6 +154,7 @@ private slots:
 
 protected:
     void hideEvent(QHideEvent *event);
+    void showEvent(QShowEvent *event);
 };
 
 #endif // LIGHTRSS_H

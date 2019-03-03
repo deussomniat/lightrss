@@ -66,7 +66,7 @@ lightrss::lightrss(QWidget *parent)
     connectEvents();
 
     setMinimumWidth(1034);
-    setMinimumHeight(600);
+    setMinimumHeight(472);
     setWindowTitle("lightrss");
     setWindowIcon(QIcon(":/images/rss48.png"));
 }
@@ -1217,8 +1217,29 @@ void lightrss::saveXML()
     file.close();
 }
 
+void lightrss::showEvent(QShowEvent *event)
+{
+    importSettings();
+    event->accept();
+}
+
 void lightrss::hideEvent(QHideEvent *event)
 {
     saveXML();
+    saveSettings();
     event->accept();
+}
+
+void lightrss::saveSettings()
+{
+    QSettings settings("lightrss", "lightrss");
+    settings.setValue("settings/winWidth", width());
+    settings.setValue("settings/winHeight", height());
+}
+
+void lightrss::importSettings()
+{
+    QSettings settings("lightrss", "lightrss");
+    resize(settings.value("settings/winWidth").toInt(),
+           settings.value("settings/winHeight").toInt());
 }
