@@ -1170,10 +1170,12 @@ void lightrss::saveXML()
         return;
     }
 
+    int index;
     QDomNodeList catItems = catalogItems();
-    QDomNode imgNode, xmlNode, urlNode;
+    QDomNode imgNode, xmlNode, urlNode, itemNode;
     QString imgStr, xmlStr, urlStr;
     QFileInfo finfo;
+    QTableWidgetItem *twi;
     QXmlStreamWriter xml;
     xml.setAutoFormatting(1);
     xml.setDevice(&file);
@@ -1181,37 +1183,48 @@ void lightrss::saveXML()
     xml.writeStartElement("catalog");
     xml.writeStartElement("feeds");
 
-    for (int i = 0; i < catItems.length(); i++) {
-        xmlNode = catItems.at(i).namedItem("xml");
-        if (xmlNode.isNull() || !xmlNode.isElement()) continue;
+    for (int r = 0; r < feedTable->rowCount(); r++) {
+        for (int c = 0; c < feedTable->columnCount(); c++) {
+            twi = feedTable->item(r, c);
+            if (!twi) continue;
 
-        xmlStr = xmlNode.toElement().text();
-        if (xmlStr.isEmpty()) continue;
+            index = twi->data(IdRole).toInt();
+            if (index > catItems.length() - 1) continue;
 
-        finfo.setFile(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlStr));
-        if (!finfo.exists()) continue;
+            itemNode = catItems.at(index);
+            if (itemNode.isNull() || !itemNode.isElement()) continue;
 
-        urlNode = catItems.at(i).namedItem("url");
-        if (urlNode.isNull() || !urlNode.isElement()) continue;
+            xmlNode = itemNode.namedItem("xml");
+            if (xmlNode.isNull() || !xmlNode.isElement()) continue;
 
-        urlStr = urlNode.toElement().text();
-        if (urlStr.isEmpty()) continue;
+            xmlStr = xmlNode.toElement().text();
+            if (xmlStr.isEmpty()) continue;
 
-        imgStr = "";
-        imgNode = catItems.at(i).namedItem("img");
-        if (!imgNode.isNull() && imgNode.isElement()) {
-            imgStr = imgNode.toElement().text();
-            if (!imgStr.isEmpty()) {
-                finfo.setFile(tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgStr));
-                if (!finfo.exists()) imgStr = "";
+            finfo.setFile(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlStr));
+            if (!finfo.exists()) continue;
+
+            urlNode = itemNode.namedItem("url");
+            if (urlNode.isNull() || !urlNode.isElement()) continue;
+
+            urlStr = urlNode.toElement().text();
+            if (urlStr.isEmpty()) continue;
+
+            imgStr = "";
+            imgNode = itemNode.namedItem("img");
+            if (!imgNode.isNull() && imgNode.isElement()) {
+                imgStr = imgNode.toElement().text();
+                if (!imgStr.isEmpty()) {
+                    finfo.setFile(tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgStr));
+                    if (!finfo.exists()) imgStr = "";
+                }
             }
-        }
 
-        xml.writeStartElement("item");
-        xml.writeTextElement("img", imgStr);
-        xml.writeTextElement("xml", xmlStr);
-        xml.writeTextElement("url", urlStr);
-        xml.writeEndElement();
+            xml.writeStartElement("item");
+            xml.writeTextElement("img", imgStr);
+            xml.writeTextElement("xml", xmlStr);
+            xml.writeTextElement("url", urlStr);
+            xml.writeEndElement();
+        }
     }
 
     xml.writeEndDocument();
