@@ -93,6 +93,7 @@ void lightrss::connectEvents()
     connect(updateAllAction, SIGNAL(triggered()), this, SLOT(updateAllFeeds()));
     connect(saveAction, SIGNAL(triggered()), this, SLOT(saveXML()));
     connect(&manager, SIGNAL(finished(QNetworkReply*)), this, SLOT(downloadFinished(QNetworkReply*)));
+    connect(urlTextBox, SIGNAL(returnPressed()), this, SLOT(addFeed()));
 }
 
 QString lightrss::getFileName(const QUrl &url)
