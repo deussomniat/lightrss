@@ -246,17 +246,20 @@ void lightrss::addFeed()
     // becomes
     // https://itunes.apple.com/lookup?id=329937558
 
-    if (urlStr.contains("itunes.apple.com") &&
-        urlStr.contains("/podcast/")) {
+    urlStr = urlStr.toLower();
+    QRegExp rx("itunes.apple.com/[^/]+/podcast/");
+    if (urlStr.contains(rx)) {
         qDebug() << "itunes url detected!";
-        QString id = urlStr.replace(QRegExp("^.+/id|\\?.*$"), "");
-        if (!id.contains(QRegExp("[^0-9]"))) {
+        rx.setPattern("/id(\\d+)");
+        if (urlStr.contains(rx) && rx.captureCount() > 0 &&
+            rx.capturedTexts().length() > 1 && !rx.capturedTexts()[1].isEmpty()) {
+            QString id = rx.capturedTexts()[1];
             qDebug() << tr("using itunes id %1").arg(id);
+            urlStr = tr("https://itunes.apple.com/lookup?id=%1").arg(id);
         } else {
-            qDebug() << tr("detected non-numeric characters in id %1").arg(id);
+            qDebug() << tr("cannot extract itunes id from url");
             return;
         }
-        urlStr = tr("https://itunes.apple.com/lookup?id=%1").arg(id);
     }
 
     QUrl url(urlStr);
