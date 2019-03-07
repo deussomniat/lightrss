@@ -46,6 +46,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QStatusBar>
 #include <QXmlStreamWriter>
 
+class TableWidget : public QTableWidget
+{
+    Q_OBJECT
+
+public:
+    TableWidget(QWidget *parent = nullptr);
+    void shiftCells(int startRow, int startCol, int endRow, int endCol, QTableWidgetItem *twiToMove = nullptr);
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event);
+    void dragMoveEvent(QDragMoveEvent *event);
+    void dragLeaveEvent(QDragLeaveEvent *event);
+    void dropEvent(QDropEvent *event);
+};
+
 class lightrss : public QMainWindow
 {
     Q_OBJECT
@@ -74,7 +89,7 @@ private:
 
     QStackedWidget *tableStack;
 
-    QTableWidget *feedTable;
+    TableWidget *feedTable;
     QTableWidget *itemTable;
 
     QLineEdit *urlTextBox;

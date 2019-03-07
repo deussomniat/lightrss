@@ -664,15 +664,7 @@ void lightrss::deleteFeed()
     QFile image(tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgStr));
     if (image.exists()) image.remove();
 
-    // depending on number of feeds in catalog it can
-    // take quite a while to refresh table. it seems
-    // a minor inconvenience to deal with a few empty
-    // cells rather than waiting on entire table to
-    // refresh. it will automatically correct next time
-    // the app is opened.
-    //
-    // refresh table
-    //loadFeedTable();
+    feedTable->shiftCells(0, 0, feedTable->rowCount() - 1, feedTable->columnCount() - 1);
 }
 
 void lightrss::copyFeedUrl()
@@ -971,7 +963,7 @@ void lightrss::createWidgets()
     itemContextMenu->addAction(copyItemAction);
     itemContextMenu->addAction(copyEncAction);
 
-    feedTable = new QTableWidget;
+    feedTable = new TableWidget;
     feedTable->setShowGrid(false);
     feedTable->setColumnCount(5);
     feedTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -984,6 +976,12 @@ void lightrss::createWidgets()
     feedTable->setContextMenuPolicy(Qt::CustomContextMenu);
     feedTable->setSelectionMode(QAbstractItemView::SingleSelection);
     feedTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    feedTable->setDragEnabled(1);
+    feedTable->setAcceptDrops(1);
+    feedTable->setDropIndicatorShown(1);
+    feedTable->setDragDropMode(QAbstractItemView::InternalMove);
+    feedTable->setMouseTracking(1);
+    feedTable->viewport()->setAcceptDrops(1);
 
     titleLabel = new QLabel;
     titleLabel->setStyleSheet("QLabel { font-size: 18px; font-weight: 700; }");
@@ -1249,4 +1247,81 @@ void lightrss::importSettings()
            settings.value("settings/winHeight").toInt());
     move(settings.value("settings/winX").toInt(),
          settings.value("settings/winY").toInt());
+}
+
+TableWidget::TableWidget(QWidget *parent)
+    : QTableWidget(parent)
+{
+
+}
+
+void TableWidget::dropEvent(QDropEvent *event)
+{
+    QModelIndex modelIndex = indexAt(event->pos());
+    event->setDropAction(Qt::IgnoreAction);
+
+    if (!modelIndex.isValid() || selectedItems().length() < 1) return;
+
+    QTableWidgetItem *sourceItem = selectedItems()[0];
+    if (!sourceItem) return;
+
+    int startRow = sourceItem->row();
+    int startCol = sourceItem->column();
+
+    QTableWidgetItem *destItem = itemFromIndex(modelIndex);
+    if (!destItem) return;
+
+    int endRow = destItem->row();
+    int endCol = destItem->column();
+
+    if (startRow == endRow && startCol == endCol) return;
+
+    shiftCells(startRow, startCol, endRow, endCol, takeItem(startRow, startCol));
+
+    event->accept();
+}
+
+void TableWidget::shiftCells(int startRow, int startCol, int endRow, int endCol, QTableWidgetItem *twiToMove)
+{
+    if (startRow == endRow && startCol == endCol) return;
+
+    bool ascending = (startRow < endRow || (startRow == endRow && startCol < endCol));
+    int cols = columnCount() - 1;
+    int defaultStartCol = (ascending) ? 0 : cols;
+    QList<QList<int>> emptyCells;
+    QTableWidgetItem *twi;
+
+    for (int r = startRow; (ascending && r <= endRow) || (!ascending && r >= endRow); (ascending) ? r++ : r--) {
+        for (int c = (r == startRow) ? startCol : defaultStartCol; (ascending && c <= cols) || (!ascending && c >= 0); (ascending) ? c++ : c--) {
+            if (!item(r, c)) {
+                emptyCells.append(QList<int>() << r << c);
+            } else if (emptyCells.length() > 0) {
+                twi = takeItem(r, c);
+                setItem(emptyCells[0][0], emptyCells[0][1], twi);
+                emptyCells.removeAt(0);
+                emptyCells.append(QList<int>() << r << c);
+            }
+            if (r == endRow && c == endCol) break;
+        }
+        if (r == endRow) break;
+    }
+
+    if (twiToMove && !item(endRow, endCol)) {
+        setItem(endRow, endCol, twiToMove);
+    }
+}
+
+void TableWidget::dragEnterEvent(QDragEnterEvent *event)
+{
+    event->accept();
+}
+
+void TableWidget::dragMoveEvent(QDragMoveEvent *event)
+{
+    event->accept();
+}
+
+void TableWidget::dragLeaveEvent(QDragLeaveEvent *event)
+{
+    event->accept();
 }
