@@ -1137,6 +1137,7 @@ QTableWidgetItem* lightrss::createFeedTableItem(int index)
         }
     }
 
+    thumbnail->setStatusTip(urlStr);
     thumbnail->setText(xmlNameStr);
     thumbnail->setTextAlignment(Qt::AlignCenter);
     thumbnail->setData(IdRole, index);
