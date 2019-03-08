@@ -50,8 +50,10 @@ lightrss::lightrss(QWidget *parent)
     if (!fileTest.exists()) QFile::copy(":/templates/catalog.xml", catalogPath);
     if (!fileTest.isWritable()) QFile::setPermissions(catalogPath, QFile::ReadOwner | QFile::ReadGroup | QFile::ReadOther | QFile::WriteOwner);
 
-    acceptedXmlTypes << "application/rss+xml" << "application/x-rss+xml" << "application/rdf+xml"
-                     << "application/atom+xml" << "application/xml" << "application/rss+xml"
+    acceptedXmlTypes << "application/rss+xml" << "application/x-rss+xml"
+                     << "application/rdf+xml" << "application/x-rdf+xml"
+                     << "application/atom+xml" << "application/x-atom+xml"
+                     << "application/xml" << "application/x-xml"
                      << "text/xml";
 
     acceptedImgTypes << "image/jpeg" << "image/png" << "image/gif";
@@ -844,6 +846,7 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
     QString xmlNameStr, feedTitleStr, titleStr, pubDateStr;
     QDomNode feedTitle, title, pubDate, xmlName;
     QDomNodeList channel;
+    QDateTime dt;
 
     xmlName = catalogItems().at(index).namedItem("xml");
     if (!xmlName.isNull() && xmlName.isElement()) {
@@ -902,8 +905,9 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
         if (!pubDate.isNull() && pubDate.isElement()) {
             pubDateStr = pubDate.toElement().text();
             if (!pubDateStr.isEmpty()) {
+                dt = QDateTime::fromString(pubDateStr, Qt::RFC2822Date);
                 QTableWidgetItem *dateItem = new QTableWidgetItem;
-                dateItem->setText(pubDate.toElement().text());
+                dateItem->setText((!dt.isNull() && dt.isValid()) ? dt.toString("ddd MM/dd/yy hh:mm:ss a") : pubDateStr);
                 dateItem->setSizeHint(QSize(274, 24));
                 dateItem->setData(IdRole, i);
                 itemTable->setItem(row, 1, dateItem);
