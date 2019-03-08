@@ -955,10 +955,10 @@ void lightrss::createWidgets()
     setStatusBar(statusbar);
 
     feedContextMenu = new QMenu;
-    feedContextMenu->addAction(deleteFeedAction);
-    feedContextMenu->addAction(refreshImageAction);
-    feedContextMenu->addAction(refreshFeedAction);
     feedContextMenu->addAction(copyFeedAction);
+    feedContextMenu->addAction(refreshFeedAction);
+    feedContextMenu->addAction(refreshImageAction);
+    feedContextMenu->addAction(deleteFeedAction);
 
     itemContextMenu = new QMenu;
     itemContextMenu->addAction(copyItemAction);
