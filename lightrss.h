@@ -77,12 +77,16 @@ private:
     QString feedsPath;
     QString imagesPath;
     QString catalogPath;
+    QString templatesPath;
 
     QStringList acceptedImgTypes;
     QStringList acceptedXmlTypes;
     QStringList acceptedXmlExtensions;
     QStringList acceptedImgExtensions;
 
+    // [0] = xml, [1] = url, [2] = img, [3] = tpl
+    QList<QStringList> catalogList;
+    // [0] = index, [1] = title, [2] = url
     QList<QVariantList> imgTracker;
 
     QStatusBar *statusbar;
@@ -118,9 +122,7 @@ private:
 
     QTextBrowser *descBrowser;
 
-    QDomDocument catalog;
     QDomNodeList feedItems;
-    QDomNodeList catalogItems();
 
     QNetworkAccessManager manager;
     QNetworkConfigurationManager ncmgr;
@@ -130,7 +132,7 @@ private:
     void loadFeeds();
     void loadFeedTable();
     QTableWidgetItem* createFeedTableItem(int index);
-    int createCatalogNode(QString img, QString xml, QString url);
+    int createCatalogEntry(QString img, QString xml, QString url);
     void insertThumbnail(QTableWidgetItem *twi);
     void connectEvents();
     void clearItemTable();
@@ -141,6 +143,15 @@ private:
     QString getFeedTitleForImage(const QString &url);
     void saveSettings();
     void importSettings();
+    QString getFeedUrl(int index);
+    QString getFeedXml(int index);
+    QString getFeedImg(int index);
+    QString getFeedTpl(int index);
+    bool setFeedXml(int index, QString value);
+    bool setFeedUrl(int index, QString value);
+    bool setFeedImg(int index, QString value);
+    bool setFeedTpl(int index, QString value);
+    bool clearCatalogEntry(int index);
 
     void startDownload(const QUrl &url);
     QString getFileName(const QUrl &url);

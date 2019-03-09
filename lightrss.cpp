@@ -33,6 +33,7 @@ lightrss::lightrss(QWidget *parent)
     catalogPath = tr("%1%2%3").arg(homePath).arg(sep).arg("catalog.xml");
     feedsPath = tr("%1%2%3").arg(homePath).arg(sep).arg("feeds");
     imagesPath = tr("%1%2%3").arg(homePath).arg(sep).arg("images");
+    templatesPath = tr("%1%2%3").arg(homePath).arg(sep).arg("templates");
 
     // make sure all lightrss folders exist
     QDir dirTest;
@@ -42,6 +43,8 @@ lightrss::lightrss(QWidget *parent)
     if (!dirTest.exists()) dirTest.mkdir(feedsPath);
     dirTest.setPath(imagesPath);
     if (!dirTest.exists()) dirTest.mkdir(imagesPath);
+    dirTest.setPath(templatesPath);
+    if (!dirTest.exists()) dirTest.mkdir(templatesPath);
 
     // make sure catalog xml file exists and is
     // readable and writable
@@ -207,34 +210,67 @@ void lightrss::refreshFeed()
 
     int index = twi->data(IdRole).toInt();
 
-    QDomNode itemNode, urlNode;
-    itemNode = catalogItems().at(index);
-    if (itemNode.isNull() || !itemNode.isElement()) return;
-
-    urlNode = itemNode.namedItem("url");
-    if (urlNode.isNull() || !urlNode.isElement()) return;
-
-    QString urlStr = urlNode.toElement().text();
+    QString urlStr = getFeedUrl(index);
     if (urlStr.isEmpty()) return;
 
-    QUrl url(urlStr);
-    startDownload(url);
+    startDownload(QUrl(urlStr));
+}
+
+QString lightrss::getFeedXml(int index)
+{
+    return (index > -1 && index < catalogList.length()) ? catalogList[index][0] : "";
+}
+
+bool lightrss::setFeedXml(int index, QString value)
+{
+    if (index < 0 || index > catalogList.length() - 1) return 0;
+    catalogList[index][0] = value;
+    return 1;
+}
+
+QString lightrss::getFeedUrl(int index)
+{
+    return (index > -1 && index < catalogList.length()) ? catalogList[index][1] : "";
+}
+
+bool lightrss::setFeedUrl(int index, QString value)
+{
+    if (index < 0 || index > catalogList.length() - 1) return 0;
+    catalogList[index][1] = value;
+    return 1;
+}
+
+QString lightrss::getFeedImg(int index)
+{
+    return (index > -1 && index < catalogList.length()) ? catalogList[index][2] : "";
+}
+
+bool lightrss::setFeedImg(int index, QString value)
+{
+    if (index < 0 || index > catalogList.length() - 1) return 0;
+    catalogList[index][2] = value;
+    return 1;
+}
+
+QString lightrss::getFeedTpl(int index)
+{
+    return (index > -1 && index < catalogList.length()) ? catalogList[index][3] : "";
+}
+
+bool lightrss::setFeedTpl(int index, QString value)
+{
+    if (index < 0 || index > catalogList.length() - 1) return 0;
+    catalogList[index][3] = value;
+    return 1;
 }
 
 void lightrss::updateAllFeeds()
 {
-    QDomNodeList catItems = catalogItems();
-    QDomNode itemNode, urlNode;
     QString urlStr;
-    for (int i = 0; i < catItems.length(); i++) {
-        itemNode = catItems.at(i);
-        if (itemNode.isNull() || !itemNode.isElement()) continue;
-        urlNode = itemNode.namedItem("url");
-        if (urlNode.isNull() || !urlNode.isElement()) continue;
-        urlStr = urlNode.toElement().text();
+    for (int i = 0; i < catalogList.length(); i++) {
+        urlStr = getFeedUrl(i);
         if (urlStr.isEmpty()) continue;
-        QUrl url(urlStr);
-        startDownload(url);
+        startDownload(QUrl(urlStr));
     }
 }
 
@@ -265,8 +301,7 @@ void lightrss::addFeed()
         }
     }
 
-    QUrl url(urlStr);
-    startDownload(url);
+    startDownload(QUrl(urlStr));
 }
 
 void lightrss::startDownload(const QUrl &url)
@@ -440,9 +475,9 @@ void lightrss::downloadFinished(QNetworkReply *reply)
     }
 
     if (!isError && !isImage && !isOldFile) {
-        prevTotal = catalogItems().length();
-        index = createCatalogNode("", tr("%1.xml").arg(feedTitle), url.toString());
-        isError = (index < 0 || prevTotal == catalogItems().length());
+        prevTotal = catalogList.length();
+        index = createCatalogEntry("", tr("%1.xml").arg(feedTitle), url.toString());
+        isError = (index < 0 || prevTotal == catalogList.length());
         if (isError) {
             qDebug() << "Cannot update catalog with new feed!";
         }
@@ -473,7 +508,7 @@ void lightrss::downloadFinished(QNetworkReply *reply)
 
 void lightrss::updateThumbnail(QString feedTitle, QString fext)
 {
-    // [0] = index, [1] = feed title, [2] = img url
+    // [0] = index, [1] = title, [2] = url
 
     int index = -1;
     QString imageTitle;
@@ -486,15 +521,10 @@ void lightrss::updateThumbnail(QString feedTitle, QString fext)
         }
     }
 
-    QDomNodeList catItems = catalogItems();
-    if (index < 0 || index > catItems.length() - 1) return;
+    if (index < 0 || index > catalogList.length() - 1) return;
 
     QString imgNameStr = tr("%1.%2").arg(feedTitle).arg(fext);
-    QDomNode itemNode = catItems.at(index);
-    if (itemNode.isNull() || !itemNode.isElement()) return;
-    QDomNode imgNode = itemNode.namedItem("img");
-    if (imgNode.isNull() || !imgNode.isElement()) return;
-    imgNode.firstChild().toText().setNodeValue(imgNameStr);
+    if (!setFeedImg(index, imgNameStr)) return;
 
     int twiIndex;
     bool loaded;
@@ -573,18 +603,11 @@ void lightrss::refreshImage(int index)
         index = twi->data(IdRole).toInt();
     }
 
-    QDomNodeList catItems = catalogItems();
-    if (index < 0 || index > catItems.length() - 1) return;
+    if (index < 0 || index > catalogList.length() - 1) return;
 
-    QDomNode itemNode, xmlNode, imgNode, chanNode, urlNode;
     QString xmlStr, imgUrlStr, feedTitle;
-    itemNode = catItems.at(index);
-    if (itemNode.isNull() || !itemNode.isElement()) return;
 
-    xmlNode = itemNode.namedItem("xml");
-    if (xmlNode.isNull() || !xmlNode.isElement()) return;
-
-    xmlStr = xmlNode.toElement().text();
+    xmlStr = getFeedXml(index);
     if (xmlStr.isEmpty()) return;
 
     QFile file(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlStr));
@@ -601,6 +624,7 @@ void lightrss::refreshImage(int index)
 
     file.close();
 
+    QDomNode chanNode, imgNode, urlNode;
     QDomNodeList channel = doc.elementsByTagName("channel");
     if (channel.length() < 1) return;
 
@@ -630,31 +654,37 @@ void lightrss::refreshImage(int index)
     startDownload(QUrl(imgUrlStr));
 }
 
+bool lightrss::clearCatalogEntry(int index)
+{
+    int success = 0;
+    (setFeedXml(index, "")) ? success++ : success--;
+    (setFeedUrl(index, "")) ? success++ : success--;
+    (setFeedImg(index, "")) ? success++ : success--;
+    (setFeedTpl(index, "")) ? success++ : success--;
+    return (success == 4);
+}
+
 void lightrss::deleteFeed()
 {
     QTableWidgetItem *twi = feedTable->currentItem();
     if (!twi) return;
 
     int index = twi->data(IdRole).toInt();
-    QDomNode item, img, xml, url;
-    QString imgStr, xmlStr;
-    item = catalogItems().at(index);
-    img = item.namedItem("img");
-    imgStr = img.toElement().text();
-    xml = item.namedItem("xml");
-    xmlStr = xml.toElement().text();
-    url = item.namedItem("url");
 
-    // we only remove the child nodes. we don't
-    // remove the item node because it would
-    // mess up the index that we assign to each
-    // table item. we need the total number of
-    // items to remain the same in order for the
-    // assigned index on each table item to remain
-    // accurate.
-    item.removeChild(img);
-    item.removeChild(xml);
-    item.removeChild(url);
+    QString xmlStr = getFeedXml(index);
+    if (xmlStr.isEmpty()) return;
+
+    QString imgStr = getFeedImg(index);
+
+    // we only clear the catalog entry values.
+    // we don't remove the entry from the list
+    // because it would mess up the index that
+    // we assign to each table item. we need
+    // the total number of entries to remain
+    // the same in order for the assigned index
+    // on each table item to remain accurate.
+
+    if (!clearCatalogEntry(index)) return;
 
     int row = feedTable->currentRow();
     int col = feedTable->currentColumn();
@@ -664,8 +694,10 @@ void lightrss::deleteFeed()
 
     QFile feed(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlStr));
     if (feed.exists()) feed.remove();
-    QFile image(tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgStr));
-    if (image.exists()) image.remove();
+    if (!imgStr.isEmpty()) {
+        QFile image(tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgStr));
+        if (image.exists()) image.remove();
+    }
 
     feedTable->shiftCells(0, 0, feedTable->rowCount() - 1, feedTable->columnCount() - 1);
 }
@@ -676,11 +708,9 @@ void lightrss::copyFeedUrl()
     if (!twi) return;
 
     int index = twi->data(IdRole).toInt();
-    QDomNode url;
-    url = catalogItems().at(index).namedItem("url");
-    if (url.isNull() || !url.isElement()) return;
-    QString urlStr = url.toElement().text();
+    QString urlStr = getFeedUrl(index);
     if (urlStr.isEmpty()) return;
+
     QClipboard *clipboard = QGuiApplication::clipboard();
     clipboard->setText(urlStr);
 }
@@ -844,17 +874,14 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
 
     int row;
     QString xmlNameStr, feedTitleStr, titleStr, pubDateStr;
-    QDomNode feedTitle, title, pubDate, xmlName;
+    QDomNode feedTitle, title, pubDate;
     QDomNodeList channel;
     QDateTime dt;
 
-    xmlName = catalogItems().at(index).namedItem("xml");
-    if (!xmlName.isNull() && xmlName.isElement()) {
-        xmlNameStr = xmlName.toElement().text();
-        if (xmlNameStr.isEmpty()) {
-            qDebug() << "xml filename is not specified";
-            return;
-        }
+    xmlNameStr = getFeedXml(index);
+    if (xmlNameStr.isEmpty()) {
+        qDebug() << "xml filename is not specified";
+        return;
     }
 
     QFile file(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlNameStr));
@@ -869,24 +896,34 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
         return;
     }
 
+    file.close();
+
     channel = doc.elementsByTagName("channel");
-    if (channel.length() > 0) {
-        feedTitle = channel.at(0).namedItem("title");
-        if (!feedTitle.isNull() && feedTitle.isElement()) {
-            feedTitleStr = feedTitle.toElement().text();
-            if (!feedTitleStr.isEmpty()) {
-                feedTitleStr = feedTitleStr.replace(QRegExp("\\|.+$"), "");
-                feedTitleStr = feedTitleStr.trimmed();
-                titleLabel->setText(feedTitleStr);
-            }
-        }
+    if (channel.length() < 1) {
+        qDebug() << "cannot find channel element in rss feed";
+        return;
     }
+
+    feedTitle = channel.at(0).namedItem("title");
+    if (feedTitle.isNull() || !feedTitle.isElement()) {
+        qDebug() << "cannot find title element in rss feed";
+        return;
+    }
+
+    feedTitleStr = feedTitle.toElement().text();
+    if (!feedTitleStr.isEmpty()) {
+        feedTitleStr = feedTitleStr.replace(QRegExp("\\|.+$"), "");
+        feedTitleStr = feedTitleStr.trimmed();
+    } else {
+        feedTitleStr = xmlNameStr;
+    }
+
+    titleLabel->setText(feedTitleStr);
 
     feedItems = doc.elementsByTagName("item");
 
     for (int i = 0; i < feedItems.length(); i++) {
         title = feedItems.at(i).namedItem("title");
-        // we need at least a title to create a new table item
         if (title.isNull() || !title.isElement()) continue;
 
         titleStr = title.toElement().text();
@@ -907,9 +944,10 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
             if (!pubDateStr.isEmpty()) {
                 dt = QDateTime::fromString(pubDateStr, Qt::RFC2822Date);
                 QTableWidgetItem *dateItem = new QTableWidgetItem;
-                dateItem->setText((!dt.isNull() && dt.isValid()) ? dt.toString("ddd MM/dd/yy hh:mm:ss a") : pubDateStr);
+                dateItem->setText((!dt.isNull() && dt.isValid()) ? dt.toString("ddd MM/dd/yyyy hh:mm:ss A") : pubDateStr);
                 dateItem->setSizeHint(QSize(274, 24));
                 dateItem->setData(IdRole, i);
+                dateItem->setTextAlignment(Qt::AlignCenter);
                 itemTable->setItem(row, 1, dateItem);
             }
         }
@@ -917,8 +955,6 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
 
     itemTable->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
     tableStack->setCurrentIndex(1);
-
-    file.close();
 }
 
 void lightrss::showFeeds()
@@ -1045,7 +1081,7 @@ void lightrss::loadFeeds()
         return;
     }
 
-    catalog = QDomDocument("catalog");
+    QDomDocument catalog("catalog");
     if (!catalog.setContent(&file)) {
         file.close();
         return;
@@ -1053,55 +1089,71 @@ void lightrss::loadFeeds()
 
     file.close();
 
+    QFileInfo finfo;
+    QString imgStr, xmlStr, urlStr, tplStr;
+    QDomNode itemNode, imgNode, xmlNode, urlNode, tplNode;
+    QDomNodeList items = catalog.elementsByTagName("item");
+    for (int i = 0; i < items.length(); i++) {
+        itemNode = items.at(i);
+        if (itemNode.isNull() || !itemNode.isElement()) continue;
+
+        xmlNode = itemNode.namedItem("xml");
+        if (xmlNode.isNull() || !xmlNode.isElement()) continue;
+
+        xmlStr = xmlNode.toElement().text();
+        if (xmlStr.isEmpty()) continue;
+
+        finfo.setFile(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlStr));
+        if (!finfo.exists()) continue;
+
+        urlNode = itemNode.namedItem("url");
+        if (urlNode.isNull() || !urlNode.isElement()) continue;
+
+        urlStr = urlNode.toElement().text();
+        if (urlStr.isEmpty()) continue;
+
+        imgStr = "";
+        imgNode = itemNode.namedItem("img");
+        if (!imgNode.isNull() && imgNode.isElement()) {
+            imgStr = imgNode.toElement().text();
+            if (!imgStr.isEmpty()) {
+                finfo.setFile(tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgStr));
+                if (!finfo.exists()) imgStr = "";
+            }
+        }
+
+        tplStr = "";
+        tplNode = itemNode.namedItem("tpl");
+        if (!tplNode.isNull() && tplNode.isElement()) {
+            tplStr = tplNode.toElement().text();
+            if (!tplStr.isEmpty()) {
+                finfo.setFile(tr("%1%2%3").arg(templatesPath).arg(sep).arg(tplStr));
+                if (!finfo.exists()) tplStr = "";
+            }
+        }
+
+        catalogList << (QStringList() << xmlStr << urlStr << imgStr << tplStr);
+    }
+
     loadFeedTable();
 }
 
-QDomNodeList lightrss::catalogItems()
+int lightrss::createCatalogEntry(QString img, QString xml, QString url)
 {
-    return catalog.elementsByTagName("item");
-}
+    catalogList << (QStringList() << xml << url << img << "");
 
-int lightrss::createCatalogNode(QString img, QString xml, QString url)
-{
-    QDomElement itemNode = catalog.createElement("item");
-    QDomElement imgNode = catalog.createElement("img");
-    QDomElement xmlNode = catalog.createElement("xml");
-    QDomElement urlNode = catalog.createElement("url");
-
-    imgNode.appendChild(catalog.createTextNode(img));
-    xmlNode.appendChild(catalog.createTextNode(xml));
-    urlNode.appendChild(catalog.createTextNode(url));
-
-    itemNode.appendChild(imgNode);
-    itemNode.appendChild(xmlNode);
-    itemNode.appendChild(urlNode);
-
-    QDomNodeList feeds = catalog.elementsByTagName("feeds");
-    if (feeds.length() < 1) return -1;
-
-    QDomNode feedsNode = feeds.at(0);
-    if (feedsNode.isNull() || !feedsNode.isElement()) return -1;
-
-    feedsNode.appendChild(itemNode);
-
-    return catalogItems().length() - 1;
+    return catalogList.length() - 1;
 }
 
 QTableWidgetItem* lightrss::createFeedTableItem(int index)
 {
-    QDomNode item = catalogItems().at(index);
-    if (item.isNull() || !item.isElement()) return nullptr;
-
     bool loaded, hasImage;
     QFileInfo finfo;
     QDomNode imgName, xmlName, url;
     QString imgNameStr, xmlNameStr, urlStr;
 
     // we must have the xml file to create a table item
-    xmlName = item.namedItem("xml");
-    if (xmlName.isNull() || !xmlName.isElement()) return nullptr;
-
-    xmlNameStr = xmlName.toElement().text();
+    xmlNameStr = getFeedXml(index);
     if (xmlNameStr.isEmpty()) return nullptr;
 
     // make sure local feed exists
@@ -1109,24 +1161,17 @@ QTableWidgetItem* lightrss::createFeedTableItem(int index)
     if (!finfo.exists()) return nullptr;
 
     // we must have a feed url to generate a table item
-    url = item.namedItem("url");
-    if (url.isNull() || !url.isElement()) return nullptr;
-
-    urlStr = url.toElement().text();
+    urlStr = getFeedUrl(index);
     if (urlStr.isEmpty()) return nullptr;
 
     // make sure local image exists if path is
     // specified in catalog
-    imgName = item.namedItem("img");
-    hasImage = (!imgName.isNull() && imgName.isElement());
+    imgNameStr = getFeedImg(index);
+    hasImage = (!imgNameStr.isEmpty());
     if (hasImage) {
-        imgNameStr = imgName.toElement().text();
-        hasImage = (!imgNameStr.isEmpty());
-        if (hasImage) {
-            imgNameStr = tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgNameStr);
-            finfo.setFile(imgNameStr);
-            hasImage = (finfo.exists());
-        }
+        imgNameStr = tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgNameStr);
+        finfo.setFile(imgNameStr);
+        hasImage = (finfo.exists());
     }
 
     QTableWidgetItem *thumbnail = new QTableWidgetItem;
@@ -1153,10 +1198,9 @@ void lightrss::loadFeedTable()
     clearFeedTable();
 
     int row, col, total = 0;
-    int catItems = catalogItems().length();
     QTableWidgetItem *thumbnail;
 
-    for (int i = 0; i < catItems; i++) {
+    for (int i = 0; i < catalogList.length(); i++) {
         thumbnail = createFeedTableItem(i);
         if (!thumbnail) continue;
 
@@ -1177,9 +1221,7 @@ void lightrss::saveXML()
     }
 
     int index;
-    QDomNodeList catItems = catalogItems();
-    QDomNode imgNode, xmlNode, urlNode, itemNode;
-    QString imgStr, xmlStr, urlStr;
+    QString imgStr, xmlStr, urlStr, tplStr;
     QFileInfo finfo;
     QTableWidgetItem *twi;
     QXmlStreamWriter xml;
@@ -1195,40 +1237,35 @@ void lightrss::saveXML()
             if (!twi) continue;
 
             index = twi->data(IdRole).toInt();
-            if (index > catItems.length() - 1) continue;
 
-            itemNode = catItems.at(index);
-            if (itemNode.isNull() || !itemNode.isElement()) continue;
-
-            xmlNode = itemNode.namedItem("xml");
-            if (xmlNode.isNull() || !xmlNode.isElement()) continue;
-
-            xmlStr = xmlNode.toElement().text();
+            xmlStr = getFeedXml(index);
             if (xmlStr.isEmpty()) continue;
 
             finfo.setFile(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlStr));
             if (!finfo.exists()) continue;
 
-            urlNode = itemNode.namedItem("url");
-            if (urlNode.isNull() || !urlNode.isElement()) continue;
-
-            urlStr = urlNode.toElement().text();
+            urlStr = getFeedUrl(index);
             if (urlStr.isEmpty()) continue;
 
             imgStr = "";
-            imgNode = itemNode.namedItem("img");
-            if (!imgNode.isNull() && imgNode.isElement()) {
-                imgStr = imgNode.toElement().text();
-                if (!imgStr.isEmpty()) {
-                    finfo.setFile(tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgStr));
-                    if (!finfo.exists()) imgStr = "";
-                }
+            imgStr = getFeedImg(index);
+            if (!imgStr.isEmpty()) {
+                finfo.setFile(tr("%1%2%3").arg(imagesPath).arg(sep).arg(imgStr));
+                if (!finfo.exists()) imgStr = "";
+            }
+
+            tplStr = "";
+            tplStr = getFeedTpl(index);
+            if (!tplStr.isEmpty()) {
+                finfo.setFile(tr("%1%2%3").arg(templatesPath).arg(sep).arg(tplStr));
+                if (!finfo.exists()) tplStr = "";
             }
 
             xml.writeStartElement("item");
-            xml.writeTextElement("img", imgStr);
             xml.writeTextElement("xml", xmlStr);
             xml.writeTextElement("url", urlStr);
+            xml.writeTextElement("img", imgStr);
+            xml.writeTextElement("tpl", tplStr);
             xml.writeEndElement();
         }
     }
