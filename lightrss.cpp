@@ -361,8 +361,7 @@ QString lightrss::extractFeedUrl(QNetworkReply *reply)
 
     QJsonValue jsonVal = results.at(0);
     QJsonObject feed = jsonVal.toObject();
-    feedUrl = feed["feedUrl"].toString();
-    return feedUrl;
+    return feed["feedUrl"].toString();
 }
 
 void lightrss::downloadFinished(QNetworkReply *reply)
@@ -657,10 +656,10 @@ void lightrss::refreshImage(int index)
 bool lightrss::clearCatalogEntry(int index)
 {
     int success = 0;
-    (setFeedXml(index, "")) ? success++ : success--;
-    (setFeedUrl(index, "")) ? success++ : success--;
-    (setFeedImg(index, "")) ? success++ : success--;
-    (setFeedTpl(index, "")) ? success++ : success--;
+    if (setFeedXml(index, "")) success++;
+    if (setFeedUrl(index, "")) success++;
+    if (setFeedImg(index, "")) success++;
+    if (setFeedTpl(index, "")) success++;
     return (success == 4);
 }
 
@@ -721,11 +720,14 @@ void lightrss::copyItemUrl()
     if (!twi) return;
 
     int index = twi->data(IdRole).toInt();
+
     QDomNode link;
     link = feedItems.at(index).namedItem("link");
     if (link.isNull() || !link.isElement()) return;
+
     QString url = link.toElement().text();
     if (url.isEmpty()) return;
+
     QClipboard *clipboard = QGuiApplication::clipboard();
     clipboard->setText(url);
 }
@@ -736,11 +738,14 @@ void lightrss::copyEnclosureUrl()
     if (!twi) return;
 
     int index = twi->data(IdRole).toInt();
+
     QDomNode enc;
     enc = feedItems.at(index).namedItem("enclosure");
     if (enc.isNull() || !enc.isElement()) return;
+
     QString url = enc.toElement().attribute("url");
     if (url.isEmpty()) return;
+
     QClipboard *clipboard = QGuiApplication::clipboard();
     clipboard->setText(url);
 }
@@ -982,6 +987,7 @@ void lightrss::createWidgets()
     copyEncAction = new QAction(QIcon(":/images/copy_enclosure48.png"), tr("Copy enclosure url"));
 
     urlTextBox = new QLineEdit;
+    urlTextBox->setStatusTip("Enter feed url");
 
     QToolBar *toolbar = new QToolBar;
     toolbar->addAction(backAction);

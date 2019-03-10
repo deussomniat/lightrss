@@ -129,54 +129,57 @@ private:
     QVector<QNetworkReply*> currentDownloads;
 
     void createWidgets();
+    void connectEvents();
     void loadFeeds();
     void loadFeedTable();
-    QTableWidgetItem* createFeedTableItem(int index);
-    int createCatalogEntry(QString img, QString xml, QString url);
-    void insertThumbnail(QTableWidgetItem *twi);
-    void connectEvents();
     void clearItemTable();
     void clearFeedTable();
-    void updateThumbnail(QString feedTitle, QString fext);
-    QString convertDuration(QString duration);
-    QString getFeedTitle(const QString &filename);
-    QString getFeedTitleForImage(const QString &url);
     void saveSettings();
     void importSettings();
-    QString getFeedUrl(int index);
-    QString getFeedXml(int index);
-    QString getFeedImg(int index);
-    QString getFeedTpl(int index);
+    void startDownload(const QUrl &url);
+    void insertThumbnail(QTableWidgetItem *twi);
+    void updateThumbnail(QString feedTitle, QString fext);
+
+    bool clearCatalogEntry(int index);
+    bool isHttpRedirect(QNetworkReply *reply);
     bool setFeedXml(int index, QString value);
     bool setFeedUrl(int index, QString value);
     bool setFeedImg(int index, QString value);
     bool setFeedTpl(int index, QString value);
-    bool clearCatalogEntry(int index);
-
-    void startDownload(const QUrl &url);
-    QString getFileName(const QUrl &url);
     bool saveToDisk(const QString &path, const QString &filename, QIODevice *data);
-    bool isHttpRedirect(QNetworkReply *reply);
+
+    int createCatalogEntry(QString img, QString xml, QString url);
+
+    QString getFeedUrl(int index);
+    QString getFeedXml(int index);
+    QString getFeedImg(int index);
+    QString getFeedTpl(int index);
+    QString getFileName(const QUrl &url);
+    QString convertDuration(QString duration);
     QString extractFeedUrl(QNetworkReply *reply);
+    QString getFeedTitle(const QString &filename);
+    QString getFeedTitleForImage(const QString &url);
+
+    QTableWidgetItem* createFeedTableItem(int index);
 
 private slots:
-    void selectFeed(QTableWidgetItem *twi);
-    void selectItem();
-    void feedMenuRequested(QPoint pos);
-    void itemMenuRequested(QPoint pos);
-    void showFeeds();
-    void refreshFeed();
-    void updateAllFeeds();
-    void refreshImage(int index = -1);
-    void copyFeedUrl();
-    void copyItemUrl();
-    void copyEnclosureUrl();
-    void deleteFeed();
     void saveXML();
     void addFeed();
+    void showFeeds();
+    void selectItem();
+    void deleteFeed();
+    void copyFeedUrl();
+    void copyItemUrl();
+    void refreshFeed();
+    void updateAllFeeds();
+    void copyEnclosureUrl();
+    void refreshImage(int index = -1);
+    void feedMenuRequested(QPoint pos);
+    void itemMenuRequested(QPoint pos);
+    void selectFeed(QTableWidgetItem *twi);
     void downloadFinished(QNetworkReply *reply);
-    void downloadSslErrors(const QList<QSslError> &sslErrors);
     void downloadError(QNetworkReply::NetworkError code);
+    void downloadSslErrors(const QList<QSslError> &sslErrors);
 
 protected:
     void hideEvent(QHideEvent *event);
