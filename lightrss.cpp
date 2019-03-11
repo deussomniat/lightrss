@@ -74,6 +74,14 @@ lightrss::lightrss(QWidget *parent)
     setMinimumHeight(472);
     setWindowTitle("lightrss");
     setWindowIcon(QIcon(":/images/rss48.png"));
+
+    // process any urls that were passed to the app
+    QStringList urls = qApp->arguments();
+    for (int i = 1; i < urls.length(); i++) {
+        qDebug() << tr("processing url %1 of %2").arg(i).arg(urls.length() - 1);
+        urlTextBox->setText(urls[i]);
+        startDownload(QUrl(urls[i]));
+    }
 }
 
 lightrss::~lightrss()
@@ -318,7 +326,7 @@ void lightrss::startDownload(const QUrl &url)
 
     QNetworkRequest request(url);
     request.setRawHeader("User-Agent", "lightrss/0.1");
-    request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+    request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, 1);
     request.setMaximumRedirectsAllowed(3);
 
     QNetworkReply *reply = manager.get(request);
@@ -413,7 +421,7 @@ void lightrss::downloadFinished(QNetworkReply *reply)
         if (!feedUrl.isEmpty()) {
             qDebug() << "itunes url converted!";
             urlTextBox->setText(feedUrl);
-            startDownload(feedUrl);
+            startDownload(QUrl(feedUrl));
         }
     } else {
         isError = 1;
@@ -1011,13 +1019,13 @@ void lightrss::createWidgets()
     itemContextMenu->addAction(copyEncAction);
 
     feedTable = new TableWidget;
-    feedTable->setShowGrid(false);
+    feedTable->setShowGrid(0);
     feedTable->setColumnCount(5);
     feedTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     feedTable->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    feedTable->verticalHeader()->setVisible(false);
-    feedTable->horizontalHeader()->setVisible(false);
-    feedTable->horizontalHeader()->setStretchLastSection(false);
+    feedTable->verticalHeader()->setVisible(0);
+    feedTable->horizontalHeader()->setVisible(0);
+    feedTable->horizontalHeader()->setStretchLastSection(0);
     feedTable->horizontalHeader()->setDefaultSectionSize(206);
     feedTable->verticalHeader()->setDefaultSectionSize(206);
     feedTable->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -1033,24 +1041,25 @@ void lightrss::createWidgets()
     titleLabel = new QLabel;
     titleLabel->setStyleSheet("QLabel { font-size: 18px; font-weight: 700; }");
     encLabel = new QLabel;
-    encLabel->setOpenExternalLinks(true);
+    encLabel->setOpenExternalLinks(1);
     linkLabel = new QLabel;
-    linkLabel->setOpenExternalLinks(true);
+    linkLabel->setOpenExternalLinks(1);
     sizeLabel = new QLabel;
     durationLabel = new QLabel;
 
     descBrowser = new QTextBrowser;
-    descBrowser->setOpenLinks(true);
-    descBrowser->setOpenExternalLinks(true);
+    descBrowser->setOpenLinks(1);
+    descBrowser->setOpenExternalLinks(1);
     descBrowser->setStyleSheet("QTextBrowser { background:#ffffff; }");
 
     itemTable = new QTableWidget;
+    itemTable->setShowGrid(1);
     itemTable->setColumnCount(2);
     itemTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     itemTable->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    itemTable->verticalHeader()->setVisible(false);
-    itemTable->horizontalHeader()->setVisible(true);
-    itemTable->horizontalHeader()->setStretchLastSection(false);
+    itemTable->verticalHeader()->setVisible(0);
+    itemTable->horizontalHeader()->setVisible(1);
+    itemTable->horizontalHeader()->setStretchLastSection(1);
     itemTable->setContextMenuPolicy(Qt::CustomContextMenu);
     itemTable->setHorizontalHeaderLabels(QStringList() << "Title" << "Date");
     itemTable->setSelectionBehavior(QAbstractItemView::SelectRows);
