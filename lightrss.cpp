@@ -24,6 +24,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "lightrss.h"
 
+Template::Template(QString tpl)
+{
+    tplName = tpl;
+}
+
 lightrss::lightrss(QWidget *parent)
     : QMainWindow(parent)
 {
@@ -64,9 +69,18 @@ lightrss::lightrss(QWidget *parent)
     acceptedXmlExtensions << "xml" << "rss";
     acceptedImgExtensions << "jpg" << "jpeg" << "gif" << "png";
 
+    // must match order of MapRoles enum
+    mapList << "feed_title" << "feed_image" << "item_title"
+            << "item_date" << "item_webpage" << "item_download"
+            << "item_size" << "item_duration" << "item_description";
+
     manager.setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);
 
     createWidgets();
+    // load default template. loadFeeds will also
+    // load all templates and we want the default
+    // template to always be first in the QList.
+    loadTemplate(":/templates/default.xml");
     loadFeeds();
     connectEvents();
 
@@ -262,7 +276,7 @@ bool lightrss::setFeedImg(int index, QString value)
 
 QString lightrss::getFeedTpl(int index)
 {
-    return (index > -1 && index < catalogList.length()) ? catalogList[index][3] : "";
+    return (index > -1 && index < catalogList.length() && !catalogList[index][3].isEmpty()) ? catalogList[index][3] : "default.xml";
 }
 
 bool lightrss::setFeedTpl(int index, QString value)
@@ -483,7 +497,7 @@ void lightrss::downloadFinished(QNetworkReply *reply)
 
     if (!isError && !isImage && !isOldFile) {
         prevTotal = catalogList.length();
-        index = createCatalogEntry("", tr("%1.xml").arg(feedTitle), url.toString());
+        index = createCatalogEntry(tr("%1.xml").arg(feedTitle), url.toString());
         isError = (index < 0 || prevTotal == catalogList.length());
         if (isError) {
             qDebug() << "Cannot update catalog with new feed!";
@@ -590,15 +604,27 @@ void lightrss::itemMenuRequested(QPoint pos)
     // it's possible that the user may right click
     // on a pubDate item that's empty. test for
     // empty cell before displaying menu.
-    QTableWidgetItem *twi = itemTable->currentItem();
-    if (!twi) return;
+    QTableWidgetItem *itwi = itemTable->currentItem();
+    if (!itwi) return;
 
-    int index = twi->data(IdRole).toInt();
-    QDomNode itemUrl, encUrl;
-    itemUrl = feedItems.at(index).namedItem("link");
-    copyItemAction->setDisabled(itemUrl.isNull() || !itemUrl.isElement() || itemUrl.toElement().text().isEmpty());
-    encUrl = feedItems.at(index).namedItem("enclosure");
-    copyEncAction->setDisabled(encUrl.isNull() || !encUrl.isElement() || encUrl.toElement().attribute("url").isEmpty());
+    int iIndex = itwi->data(IdRole).toInt();
+
+    QTableWidgetItem *ftwi = feedTable->currentItem();
+    if (!ftwi) return;
+
+    int fIndex = ftwi->data(IdRole).toInt();
+
+    QString tpl = getFeedTpl(fIndex);
+    if (tpl.isEmpty()) return;
+
+    int tIndex = getTemplateIndex(tpl);
+    if (tIndex < 0) return;
+
+    QString webStr = getItemValue(iIndex, templates[tIndex].itemWebpage);
+    QString downStr = getItemValue(iIndex, templates[tIndex].itemDownload);
+
+    copyItemAction->setDisabled(webStr.isEmpty());
+    copyEncAction->setDisabled(downStr.isEmpty());
 
     itemContextMenu->popup(itemTable->viewport()->mapToGlobal(pos));
 }
@@ -724,38 +750,52 @@ void lightrss::copyFeedUrl()
 
 void lightrss::copyItemUrl()
 {
-    QTableWidgetItem *twi = itemTable->currentItem();
-    if (!twi) return;
+    QTableWidgetItem *itwi = itemTable->currentItem();
+    if (!itwi) return;
 
-    int index = twi->data(IdRole).toInt();
+    int iIndex = itwi->data(IdRole).toInt();
 
-    QDomNode link;
-    link = feedItems.at(index).namedItem("link");
-    if (link.isNull() || !link.isElement()) return;
+    QTableWidgetItem *ftwi = feedTable->currentItem();
+    if (!ftwi) return;
 
-    QString url = link.toElement().text();
-    if (url.isEmpty()) return;
+    int fIndex = ftwi->data(IdRole).toInt();
+
+    QString tpl = getFeedTpl(fIndex);
+    if (tpl.isEmpty()) return;
+
+    int tIndex = getTemplateIndex(tpl);
+    if (tIndex < 0) return;
+
+    QString webStr = getItemValue(iIndex, templates[tIndex].itemWebpage);
+    if (webStr.isEmpty()) return;
 
     QClipboard *clipboard = QGuiApplication::clipboard();
-    clipboard->setText(url);
+    clipboard->setText(webStr);
 }
 
 void lightrss::copyEnclosureUrl()
 {
-    QTableWidgetItem *twi = itemTable->currentItem();
-    if (!twi) return;
+    QTableWidgetItem *itwi = itemTable->currentItem();
+    if (!itwi) return;
 
-    int index = twi->data(IdRole).toInt();
+    int iIndex = itwi->data(IdRole).toInt();
 
-    QDomNode enc;
-    enc = feedItems.at(index).namedItem("enclosure");
-    if (enc.isNull() || !enc.isElement()) return;
+    QTableWidgetItem *ftwi = feedTable->currentItem();
+    if (!ftwi) return;
 
-    QString url = enc.toElement().attribute("url");
-    if (url.isEmpty()) return;
+    int fIndex = ftwi->data(IdRole).toInt();
+
+    QString tpl = getFeedTpl(fIndex);
+    if (tpl.isEmpty()) return;
+
+    int tIndex = getTemplateIndex(tpl);
+    if (tIndex < 0) return;
+
+    QString downStr = getItemValue(iIndex, templates[tIndex].itemDownload);
+    if (downStr.isEmpty()) return;
 
     QClipboard *clipboard = QGuiApplication::clipboard();
-    clipboard->setText(url);
+    clipboard->setText(downStr);
 }
 
 void lightrss::clearItemTable()
@@ -774,14 +814,69 @@ void lightrss::clearFeedTable()
     }
 }
 
+int lightrss::getTemplateIndex(QString tpl)
+{
+    for (int i = 0; i < templates.length(); i++) {
+        if (templates[i].tplName == tpl) return i;
+    }
+    return -1;
+}
+
+QString lightrss::getItemValue(int index, QList<QStringList> list)
+{
+    bool isError;
+    QString attStr, itemVal = "";
+
+    QDomNode node = feedItems.at(index);
+    for (int i = 0; i < list.length(); i++) {
+        isError = 0;
+        attStr = "";
+        itemVal = "";
+
+        for (int j = 0; j < list[i].length(); j++) {
+            isError = (node.isNull() || !node.isElement());
+            if (isError) break;
+
+            if (list[i][j].startsWith("@")) {
+                attStr = list[i][j].mid(1);
+                break;
+            }
+
+            node = node.namedItem(list[i][j]);
+        }
+
+        if (isError) continue;
+
+        if (!attStr.isEmpty()) {
+            itemVal = node.toElement().attribute(attStr);
+        } else {
+            itemVal = node.toElement().text();
+        }
+
+        if (!itemVal.isEmpty()) return itemVal;
+    }
+
+    return itemVal;
+}
+
 void lightrss::selectItem()
 {
-    int index = itemTable->currentRow();
-    if (index < 0) return;
+    int iIndex = itemTable->currentRow();
+    if (iIndex < 0) return;
+
+    QTableWidgetItem *twi = feedTable->currentItem();
+    if (!twi) return;
+
+    int fIndex = twi->data(IdRole).toInt();
+
+    QString tpl = getFeedTpl(fIndex);
+    if (tpl.isEmpty()) return;
+
+    int tIndex = getTemplateIndex(tpl);
+    if (tIndex < 0) return;
 
     double sizeInMb;
-    QDomNode desc, link, enclosure, size, duration;
-    QString linkTxt, enclosureTxt, sizeTxt, durationTxt, minutes;
+    QString minStr;
 
     // reset labels in case an element is missing from
     // one of the items. this will cause the labels to
@@ -792,55 +887,35 @@ void lightrss::selectItem()
     durationLabel->clear();
     descBrowser->clear();
 
-    link = feedItems.at(index).namedItem("link");
-    if (!link.isNull() && link.isElement()) {
-        linkTxt = link.toElement().text();
-        if (!linkTxt.isEmpty()) {
-            linkLabel->setText(tr("<a href=\"%1\" target=\"_blank\">Webpage</a>").arg(linkTxt));
-            linkLabel->setStatusTip(linkTxt);
-        }
+    QString webStr = getItemValue(iIndex, templates[tIndex].itemWebpage);
+    if (!webStr.isEmpty()) {
+        linkLabel->setText(tr("<a href=\"%1\" target=\"_blank\">Webpage</a>").arg(webStr));
+        linkLabel->setStatusTip(webStr);
     }
 
-    enclosure = feedItems.at(index).namedItem("enclosure");
-    if (!enclosure.isNull() && enclosure.isElement()) {
-        enclosureTxt = enclosure.toElement().attribute("url");
-        if (!enclosureTxt.isEmpty()) {
-            encLabel->setText(tr("<a href=\"%1\" target=\"_blank\">Download</a>").arg(enclosureTxt));
-            encLabel->setStatusTip(enclosureTxt);
-        }
+    QString downStr = getItemValue(iIndex, templates[tIndex].itemDownload);
+    if (!downStr.isEmpty()) {
+        encLabel->setText(tr("<a href=\"%1\" target=\"_blank\">Download</a>").arg(downStr));
+        encLabel->setStatusTip(downStr);
     }
 
-    size = feedItems.at(index).namedItem("enclosure");
-    if (!size.isNull() && size.isElement()) {
-        sizeTxt = size.toElement().attribute("length");
-        if (!sizeTxt.isEmpty() && sizeTxt != "0") {
-            sizeInMb = sizeTxt.toInt() / 1000000.0;
-            sizeTxt = QString::number(sizeInMb, 'f', 2);
-            sizeLabel->setText(tr("%1 mb").arg(sizeTxt));
-        }
+    QString sizeStr = getItemValue(iIndex, templates[tIndex].itemSize);
+    if (!sizeStr.isEmpty() && sizeStr != "0") {
+        sizeInMb = sizeStr.toInt() / 1000000.0;
+        sizeStr = QString::number(sizeInMb, 'f', 2);
+        sizeLabel->setText(tr("%1 mb").arg(sizeStr));
     }
 
-    duration = feedItems.at(index).namedItem("itunes:duration");
-    if (!duration.isNull() && duration.isElement()) {
-        durationTxt = duration.toElement().text();
-        if (!durationTxt.isEmpty()){
-            minutes = convertDuration(durationTxt);
-            durationLabel->setText(tr("%1 min").arg(minutes));
-        }
+    QString durStr = getItemValue(iIndex, templates[tIndex].itemDuration);
+    if (!durStr.isEmpty()) {
+        minStr = convertDuration(durStr);
+        durationLabel->setText(tr("%1 min").arg(minStr));
     }
 
-    desc = feedItems.at(index).namedItem("content:encoded");
-    if (desc.isNull() || !desc.isElement()) {
-        desc = feedItems.at(index).namedItem("itunes:summary");
-        if (desc.isNull() || !desc.isElement()) {
-            desc = feedItems.at(index).namedItem("description");
-            if (desc.isNull() || !desc.isElement()) {
-                descBrowser->clear();
-                return;
-            }
-        }
+    QString descStr = getItemValue(iIndex, templates[tIndex].itemDescription);
+    if (!descStr.isEmpty()) {
+        descBrowser->setHtml(descStr);
     }
-    descBrowser->setHtml(desc.toElement().text());
 }
 
 QString lightrss::convertDuration(QString duration)
@@ -875,7 +950,13 @@ QString lightrss::convertDuration(QString duration)
 void lightrss::selectFeed(QTableWidgetItem *twi)
 {
     if (!twi) return;
-    int index = twi->data(IdRole).toInt();
+    int fIndex = twi->data(IdRole).toInt();
+
+    QString tpl = getFeedTpl(fIndex);
+    if (tpl.isEmpty()) return;
+
+    int tIndex = getTemplateIndex(tpl);
+    if (tIndex < 0) return;
 
     clearItemTable();
     titleLabel->clear();
@@ -886,12 +967,12 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
     descBrowser->clear();
 
     int row;
-    QString xmlNameStr, feedTitleStr, titleStr, pubDateStr;
-    QDomNode feedTitle, title, pubDate;
+    QString xmlNameStr, feedTitleStr, titleStr, dateStr;
+    QDomNode feedTitle;
     QDomNodeList channel;
     QDateTime dt;
 
-    xmlNameStr = getFeedXml(index);
+    xmlNameStr = getFeedXml(fIndex);
     if (xmlNameStr.isEmpty()) {
         qDebug() << "xml filename is not specified";
         return;
@@ -936,11 +1017,8 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
     feedItems = doc.elementsByTagName("item");
 
     for (int i = 0; i < feedItems.length(); i++) {
-        title = feedItems.at(i).namedItem("title");
-        if (title.isNull() || !title.isElement()) continue;
-
-        titleStr = title.toElement().text();
-        if (titleStr.isEmpty()) continue;
+        titleStr = getItemValue(i, templates[tIndex].itemTitle);
+        if (titleStr.isEmpty()) continue; // we need a title to create the table item
 
         row = itemTable->rowCount();
         itemTable->insertRow(row);
@@ -951,18 +1029,15 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
         titleItem->setData(IdRole, i);
         itemTable->setItem(row, 0, titleItem);
 
-        pubDate = feedItems.at(i).namedItem("pubDate");
-        if (!pubDate.isNull() && pubDate.isElement()) {
-            pubDateStr = pubDate.toElement().text();
-            if (!pubDateStr.isEmpty()) {
-                dt = QDateTime::fromString(pubDateStr, Qt::RFC2822Date);
-                QTableWidgetItem *dateItem = new QTableWidgetItem;
-                dateItem->setText((!dt.isNull() && dt.isValid()) ? dt.toString("ddd MM/dd/yyyy hh:mm:ss A") : pubDateStr);
-                dateItem->setSizeHint(QSize(274, 24));
-                dateItem->setData(IdRole, i);
-                dateItem->setTextAlignment(Qt::AlignCenter);
-                itemTable->setItem(row, 1, dateItem);
-            }
+        dateStr = getItemValue(i, templates[tIndex].itemDate);
+        if (!dateStr.isEmpty()) {
+            dt = QDateTime::fromString(dateStr, Qt::RFC2822Date);
+            QTableWidgetItem *dateItem = new QTableWidgetItem;
+            dateItem->setText((!dt.isNull() && dt.isValid()) ? dt.toString("ddd MM/dd/yyyy hh:mm:ss A") : dateStr);
+            dateItem->setSizeHint(QSize(274, 24));
+            dateItem->setData(IdRole, i);
+            dateItem->setTextAlignment(Qt::AlignCenter);
+            itemTable->setItem(row, 1, dateItem);
         }
     }
 
@@ -1088,6 +1163,101 @@ void lightrss::createWidgets()
     setCentralWidget(tableStack);
 }
 
+void lightrss::loadTemplate(QString tpl)
+{
+    for (int i = 0; i < templates.length(); i++) {
+        // no need to process template if it already exists
+        if (templates[i].tplName == tpl) return;
+    }
+
+    // the default template has the path :/templates/default.xml
+    QString path = (tpl.left(2) == ":/") ? tpl : tr("%1%2%3").arg(templatesPath).arg(sep).arg(tpl);
+    tpl = tpl.remove(QRegExp("^.*/"));
+
+    QFile file(path);
+    if (!file.open(QFile::ReadOnly | QFile::Text)) {
+        qDebug() << file.errorString();
+        return;
+    }
+
+    QDomDocument tdoc("template");
+    if (!tdoc.setContent(&file)) {
+        file.close();
+        return;
+    }
+
+    file.close();
+
+    QDomNodeList maps = tdoc.elementsByTagName("map");
+    if (maps.length() < 1) return;
+
+    // set the name of the new template
+    Template tobj(tpl);
+
+    QRegExp re("(@*[^\\.@]+)");
+    QStringList reList;
+    int pos = 0;
+
+    QDomNode mapNode;
+    QString srcStr, dstStr;
+    for (int i = 0; i < maps.length(); i++) {
+        mapNode = maps.at(i);
+        if (mapNode.isNull() || !mapNode.isElement()) continue;
+        srcStr = mapNode.toElement().attribute("src");
+        dstStr = mapNode.toElement().attribute("dst");
+        if (srcStr.isEmpty() || dstStr.isEmpty()) continue;
+
+        pos = 0;
+        reList.clear();
+        while ((pos = re.indexIn(srcStr, pos)) != -1) {
+              reList << re.cap(1);
+              pos += re.matchedLength();
+        }
+
+        switch (mapList.indexOf(dstStr)) {
+            case FeedTitle:
+                tobj.feedTitle << reList;
+                break;
+
+            case FeedImage:
+                tobj.feedImage << reList;
+                break;
+
+            case ItemTitle:
+                tobj.itemTitle << reList;
+                break;
+
+            case ItemDate:
+                tobj.itemDate << reList;
+                break;
+
+            case ItemWebpage:
+                tobj.itemWebpage << reList;
+                break;
+
+            case ItemDownload:
+                tobj.itemDownload << reList;
+                break;
+
+            case ItemSize:
+                tobj.itemSize << reList;
+                break;
+
+            case ItemDuration:
+                tobj.itemDuration << reList;
+                break;
+
+            case ItemDescription:
+                tobj.itemDescription << reList;
+                break;
+
+            default:
+                continue;
+        }
+    }
+    templates << tobj;
+}
+
 void lightrss::loadFeeds()
 {
     QFile file(catalogPath);
@@ -1143,7 +1313,11 @@ void lightrss::loadFeeds()
             tplStr = tplNode.toElement().text();
             if (!tplStr.isEmpty()) {
                 finfo.setFile(tr("%1%2%3").arg(templatesPath).arg(sep).arg(tplStr));
-                if (!finfo.exists()) tplStr = "";
+                if (!finfo.exists()) {
+                    tplStr = "";
+                } else {
+                    loadTemplate(tplStr);
+                }
             }
         }
 
@@ -1153,9 +1327,9 @@ void lightrss::loadFeeds()
     loadFeedTable();
 }
 
-int lightrss::createCatalogEntry(QString img, QString xml, QString url)
+int lightrss::createCatalogEntry(QString xml, QString url, QString img, QString tpl)
 {
-    catalogList << (QStringList() << xml << url << img << "");
+    catalogList << (QStringList() << xml << url << img << tpl);
 
     return catalogList.length() - 1;
 }

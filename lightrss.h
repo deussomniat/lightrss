@@ -46,6 +46,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QStatusBar>
 #include <QXmlStreamWriter>
 
+class Template
+{
+
+public:
+    Template(QString tpl = "");
+    QString tplName;
+    QList<QStringList> feedTitle;
+    QList<QStringList> feedImage;
+    QList<QStringList> itemTitle;
+    QList<QStringList> itemDate;
+    QList<QStringList> itemWebpage;
+    QList<QStringList> itemDownload;
+    QList<QStringList> itemSize;
+    QList<QStringList> itemDuration;
+    QList<QStringList> itemDescription;
+};
+
 class TableWidget : public QTableWidget
 {
     Q_OBJECT
@@ -69,6 +86,9 @@ public:
     lightrss(QWidget *parent = nullptr);
     ~lightrss();
     enum DataRoles { IdRole = 0x0101 };
+    enum MapRoles { FeedTitle = 0, FeedImage, ItemTitle,
+                    ItemDate, ItemWebpage, ItemDownload,
+                    ItemSize, ItemDuration, ItemDescription };
 
 private:
     QString sep;
@@ -88,6 +108,9 @@ private:
     QList<QStringList> catalogList;
     // [0] = index, [1] = title, [2] = url
     QList<QVariantList> imgTracker;
+
+    QStringList mapList;
+    QList<Template> templates;
 
     QStatusBar *statusbar;
 
@@ -136,6 +159,7 @@ private:
     void clearFeedTable();
     void saveSettings();
     void importSettings();
+    void loadTemplate(QString tpl);
     void startDownload(const QUrl &url);
     void insertThumbnail(QTableWidgetItem *twi);
     void updateThumbnail(QString feedTitle, QString fext);
@@ -148,7 +172,8 @@ private:
     bool setFeedTpl(int index, QString value);
     bool saveToDisk(const QString &path, const QString &filename, QIODevice *data);
 
-    int createCatalogEntry(QString img, QString xml, QString url);
+    int getTemplateIndex(QString tpl);
+    int createCatalogEntry(QString xml, QString url, QString img = "", QString tpl = "");
 
     QString getFeedUrl(int index);
     QString getFeedXml(int index);
@@ -159,6 +184,7 @@ private:
     QString extractFeedUrl(QNetworkReply *reply);
     QString getFeedTitle(const QString &filename);
     QString getFeedTitleForImage(const QString &url);
+    QString getItemValue(int index, QList<QStringList> list);
 
     QTableWidgetItem* createFeedTableItem(int index);
 

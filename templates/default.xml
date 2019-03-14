@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<template>
+  <channel>
+    <map src="title" dst="feed_title"/>
+    <map src="image.url" dst="feed_image"/>
+    <map src="itunes:image@href" dst="feed_image"/>
+  </channel>
+  <item>
+    <map src="title" dst="item_title"/>
+    <map src="pubDate" dst="item_date"/>
+    <map src="link" dst="item_webpage"/>
+    <map src="enclosure@url" dst="item_download"/>
+    <map src="enclosure@length" dst="item_size"/>
+    <map src="itunes:duration" dst="item_duration"/>
+    <map src="content:encoded" dst="item_description"/>
+    <map src="description" dst="item_description"/>
+  </item>
+</template>
