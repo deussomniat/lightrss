@@ -17,7 +17,7 @@ A simple qt based rss feed reader
 
 ## run
 * ./lightrss
-* ./lightrss http://host/feed1.xml http://host/feed2.xml
+* ./lightrss url1 url2 url3 ...
 
 ## itunes
 lightrss supports itunes podcast urls in the format below.
