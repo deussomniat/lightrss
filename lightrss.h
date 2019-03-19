@@ -31,8 +31,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QDomDocument>
 #include <QDir>
 #include <QtEvents>
+#include <QFileDialog>
 #include <QGuiApplication>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
@@ -45,6 +47,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QToolBar>
 #include <QStatusBar>
 #include <QXmlStreamWriter>
+
+#include "add_image.h"
+#include "add_template.h"
 
 class Template
 {
@@ -69,6 +74,7 @@ class TableWidget : public QTableWidget
 
 public:
     TableWidget(QWidget *parent = nullptr);
+    void insertThumbnail(QTableWidgetItem *twi = nullptr);
     void shiftCells(int startRow, int startCol, int endRow, int endCol, QTableWidgetItem *twiToMove = nullptr);
 
 protected:
@@ -91,6 +97,10 @@ public:
                     ItemSize, ItemDuration, ItemDescription };
 
 private:
+    AddImage *addImgWin;
+    AddTemplate *addTplWin;
+    
+    QString userAgent;
     QString sep;
     QString homePath;
     QString tempPath;
@@ -106,8 +116,8 @@ private:
 
     // [0] = xml, [1] = url, [2] = img, [3] = tpl
     QList<QStringList> catalogList;
-    // [0] = index, [1] = title, [2] = url
-    QList<QVariantList> imgTracker;
+    // [0] = index, [1] = url
+    QList<QVariantList> downloadTracker;
 
     QStringList mapList;
     QList<Template> templates;
@@ -126,11 +136,13 @@ private:
     QAction *updateAllAction;
     QAction *saveAction;
 
-    QAction *deleteFeedAction;
-    QAction *refreshImageAction;
-    QAction *refreshFeedAction;
-
     QAction *copyFeedAction;
+    QAction *refreshFeedAction;
+    QAction *refreshImageAction;
+    QAction *addImageAction;
+    QAction *addTemplateAction;
+    QAction *deleteFeedAction;
+
     QAction *copyItemAction;
     QAction *copyEncAction;
 
@@ -147,7 +159,7 @@ private:
 
     QDomNodeList feedItems;
 
-    QNetworkAccessManager manager;
+    QNetworkAccessManager namgr;
     QNetworkConfigurationManager ncmgr;
     QVector<QNetworkReply*> currentDownloads;
 
@@ -160,9 +172,10 @@ private:
     void saveSettings();
     void importSettings();
     void loadTemplate(QString tpl);
-    void startDownload(const QUrl &url);
-    void insertThumbnail(QTableWidgetItem *twi);
-    void updateThumbnail(QString feedTitle, QString fext);
+    void stopTracking(QString url);
+    void trackDownload(QString url, int index = -1);
+    void updateThumbnail(const QString &feedTitle, int index = -1);
+    void startDownload(const QString &urlStr, int index = -1);
 
     bool clearCatalogEntry(int index);
     bool isHttpRedirect(QNetworkReply *reply);
@@ -170,8 +183,9 @@ private:
     bool setFeedUrl(int index, QString value);
     bool setFeedImg(int index, QString value);
     bool setFeedTpl(int index, QString value);
-    bool saveToDisk(const QString &path, const QString &filename, QIODevice *data);
+    bool saveToDisk(const QString &path, QIODevice *data);
 
+    int getFeedIndex(QString url);
     int getTemplateIndex(QString tpl);
     int createCatalogEntry(QString xml, QString url, QString img = "", QString tpl = "");
 
@@ -179,12 +193,12 @@ private:
     QString getFeedXml(int index);
     QString getFeedImg(int index);
     QString getFeedTpl(int index);
-    QString getFileName(const QUrl &url);
+    QString getTempFileName(const QUrl &url);
     QString convertDuration(QString duration);
+    QString prepFeedTitle(const QString &title);
     QString extractFeedUrl(QNetworkReply *reply);
-    QString getFeedTitle(const QString &filename);
-    QString getFeedTitleForImage(const QString &url);
-    QString getItemValue(int index, QList<QStringList> list);
+    QString getFeedTitle(const QString &path, int fIndex = -1);
+    QString getXMLValue(const QDomNode &srcNode, QList<QStringList> list);
 
     QTableWidgetItem* createFeedTableItem(int index);
 
@@ -199,10 +213,14 @@ private slots:
     void refreshFeed();
     void updateAllFeeds();
     void copyEnclosureUrl();
-    void refreshImage(int index = -1);
+    void addImageFile();
+    void addImageUrl();
+    void showTplMenu();
+    void tplSelected(QString tplName);
+    void refreshImage(int fIndex = -1);
     void feedMenuRequested(QPoint pos);
     void itemMenuRequested(QPoint pos);
-    void selectFeed(QTableWidgetItem *twi);
+    void selectFeed(QTableWidgetItem *twi = nullptr);
     void downloadFinished(QNetworkReply *reply);
     void downloadError(QNetworkReply::NetworkError code);
     void downloadSslErrors(const QList<QSslError> &sslErrors);

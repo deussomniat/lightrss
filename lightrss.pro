@@ -43,9 +43,13 @@ DEFINES += QT_DEPRECATED_WARNINGS
 CONFIG += c++11
 
 SOURCES += main.cpp \
-           lightrss.cpp
+           lightrss.cpp \
+           add_image.cpp \
+           add_template.cpp
 
-HEADERS += lightrss.h
+HEADERS += lightrss.h \
+           add_image.h \
+           add_template.h
 
 RESOURCES += lightrss.qrc
 
