@@ -86,8 +86,8 @@ lightrss::lightrss(QWidget *parent)
     loadFeeds();
     connectEvents();
 
-    setMinimumWidth(1034);
-    setMinimumHeight(472);
+    setMinimumWidth(1060);
+    setMinimumHeight(485);
     setWindowTitle("lightrss");
     setWindowIcon(QIcon(":/images/rss48.png"));
 
@@ -176,6 +176,9 @@ void lightrss::createWidgets()
     feedTable->setDragDropMode(QAbstractItemView::InternalMove);
     feedTable->setMouseTracking(1);
     feedTable->viewport()->setAcceptDrops(1);
+    feedTable->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+    feedTable->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    feedTable->setFixedWidth(1046);
 
     titleLabel = new QLabel;
     titleLabel->setStyleSheet("QLabel { font-size: 18px; font-weight: 700; }");
@@ -220,8 +223,14 @@ void lightrss::createWidgets()
     QWidget *itemWidget = new QWidget;
     itemWidget->setLayout(itemLayout);
 
+    QVBoxLayout *feedLayout = new QVBoxLayout;
+    feedLayout->addWidget(feedTable, 1, Qt::AlignHCenter | Qt::AlignTop);
+
+    QWidget *feedWidget = new QWidget;
+    feedWidget->setLayout(feedLayout);
+
     tableStack = new QStackedWidget;
-    tableStack->addWidget(feedTable);
+    tableStack->addWidget(feedWidget);
     tableStack->addWidget(itemWidget);
 
     setCentralWidget(tableStack);
@@ -458,6 +467,7 @@ QTableWidgetItem* lightrss::createFeedTableItem(int index)
         }
     }
 
+    thumbnail->setSizeHint(QSize(206, 206));
     thumbnail->setStatusTip(urlStr);
     thumbnail->setText(xmlNameStr);
     thumbnail->setTextAlignment(Qt::AlignCenter);
@@ -1525,7 +1535,7 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
 
         QTableWidgetItem *titleItem = new QTableWidgetItem;
         titleItem->setText(itemTitleStr);
-        titleItem->setSizeHint(QSize(730, 24));
+        titleItem->setSizeHint(QSize(820, 24));
         titleItem->setData(IdRole, i);
         itemTable->setItem(row, 0, titleItem);
 
@@ -1534,7 +1544,6 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
             dt = QDateTime::fromString(dateStr, Qt::RFC2822Date);
             QTableWidgetItem *dateItem = new QTableWidgetItem;
             dateItem->setText((!dt.isNull() && dt.isValid()) ? dt.toString("ddd MM/dd/yyyy hh:mm:ss A") : dateStr);
-            dateItem->setSizeHint(QSize(274, 24));
             dateItem->setData(IdRole, i);
             dateItem->setTextAlignment(Qt::AlignCenter);
             itemTable->setItem(row, 1, dateItem);
