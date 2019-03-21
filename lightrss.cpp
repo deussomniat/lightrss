@@ -1754,6 +1754,20 @@ void TableWidget::dragEnterEvent(QDragEnterEvent *event)
 
 void TableWidget::dragMoveEvent(QDragMoveEvent *event)
 {
+    int y = event->pos().y();
+    int height = viewport()->height();
+    if (y <= 10 || height - y <= 10) {
+        QModelIndex modelIndex = indexAt(event->pos());
+        if (!modelIndex.isValid()) return;
+        QTableWidgetItem *twi = itemFromIndex(modelIndex);
+        if (!twi) return;
+        int row = twi->row();
+        if (y <= 10 && row > 0) {
+            scrollToItem(item(--row, 0));
+        } else if (height - y <= 10 && row < rowCount() - 1) {
+            scrollToItem(item(++row, 0));
+        }
+    }
     event->accept();
 }
 
