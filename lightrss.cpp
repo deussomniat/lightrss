@@ -32,7 +32,7 @@ Template::Template(QString tpl)
 lightrss::lightrss(QWidget *parent)
     : QMainWindow(parent)
 {
-    userAgent = "lightrss/0.3";
+    userAgent = "lightrss/0.4";
 
     acceptedXmlTypes << "application/rss+xml" << "application/x-rss+xml"
                      << "application/rdf+xml" << "application/x-rdf+xml"
@@ -40,10 +40,11 @@ lightrss::lightrss(QWidget *parent)
                      << "application/xml" << "application/x-xml"
                      << "text/xml";
 
-    acceptedImgTypes << "image/jpeg" << "image/png" << "image/gif";
+    acceptedImgTypes << "image/jpeg" << "image/png" << "image/gif"
+                     << "image/svg" << "image/svg+xml";
 
     acceptedXmlExtensions << "xml" << "rss";
-    acceptedImgExtensions << "jpg" << "jpeg" << "gif" << "png";
+    acceptedImgExtensions << "jpg" << "jpeg" << "gif" << "png" << "svg";
 
     // must match order of MapRoles enum
     mapList << "feed_title" << "feed_image" << "item_title"
@@ -73,7 +74,7 @@ lightrss::lightrss(QWidget *parent)
     // readable and writable
     QFile fileTest;
     fileTest.setFileName(catalogPath);
-    if (!fileTest.exists()) QFile::copy(":/templates/catalog.xml", catalogPath);
+    if (!fileTest.exists()) QFile::copy(":/resources/catalog.xml", catalogPath);
     if (!fileTest.isWritable()) QFile::setPermissions(catalogPath, QFile::ReadOwner | QFile::ReadGroup | QFile::ReadOther | QFile::WriteOwner);
 
     namgr.setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -91,18 +92,34 @@ lightrss::lightrss(QWidget *parent)
     setWindowTitle("lightrss");
     setWindowIcon(QIcon(":/images/rss48.png"));
 
-    // process any urls that were passed to the app
+    // save any urls that were passed to the app
     QStringList urls = qApp->arguments();
     for (int i = 1; i < urls.length(); i++) {
-        qDebug() << tr("processing url %1 of %2").arg(i).arg(urls.length() - 1);
-        urlTextBox->setText(urls[i]);
-        startDownload(urls[i]);
+        startupQueue << (QVariantList() << -1 << urls[i]);
     }
+    
+    QTimer::singleShot(1000, this, SLOT(processQueue()));
 }
 
 lightrss::~lightrss()
 {
 
+}
+
+void lightrss::processQueue()
+{
+    int total = startupQueue.length();
+    if (total < 1) return;
+
+    for (int i = 0; i < total; i++) {
+        startDownload(startupQueue[i][1].toString(), startupQueue[i][0].toInt());
+    }
+    // display last url passed as argument
+    int lastIndex = total - 1;
+    if (startupQueue[lastIndex][0].toInt() == -1) {
+        urlTextBox->setText(startupQueue[lastIndex][1].toString());
+    }
+    startupQueue.clear();
 }
 
 void lightrss::createWidgets()
@@ -157,6 +174,10 @@ void lightrss::createWidgets()
     itemContextMenu->addAction(copyItemAction);
     itemContextMenu->addAction(copyEncAction);
 
+    titleContextMenu = new QMenu;
+    titleContextMenu->addAction(copyFeedAction);
+    titleContextMenu->addAction(refreshFeedAction);
+    
     feedTable = new TableWidget;
     feedTable->setShowGrid(0);
     feedTable->setColumnCount(5);
@@ -182,6 +203,8 @@ void lightrss::createWidgets()
 
     titleLabel = new QLabel;
     titleLabel->setStyleSheet("QLabel { font-size: 18px; font-weight: 700; }");
+    titleLabel->setContextMenuPolicy(Qt::CustomContextMenu);
+    
     encLabel = new QLabel;
     encLabel->setOpenExternalLinks(1);
     linkLabel = new QLabel;
@@ -347,29 +370,35 @@ void lightrss::loadFeeds()
 
     file.close();
 
+    int lastFeed;
     QFileInfo finfo;
-    QString imgStr, xmlStr, urlStr, tplStr;
-    QDomNode itemNode, imgNode, xmlNode, urlNode, tplNode;
+    QString imgStr, xmlStr, urlStr, tplStr, iurlStr;
+    QDomNode itemNode, imgNode, xmlNode, urlNode, tplNode, iurlNode;
     QDomNodeList items = catalog.elementsByTagName("item");
     for (int i = 0; i < items.length(); i++) {
         itemNode = items.at(i);
         if (itemNode.isNull() || !itemNode.isElement()) continue;
 
-        xmlNode = itemNode.namedItem("xml");
-        if (xmlNode.isNull() || !xmlNode.isElement()) continue;
-
-        xmlStr = xmlNode.toElement().text();
-        if (xmlStr.isEmpty()) continue;
-
-        finfo.setFile(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlStr));
-        if (!finfo.exists()) continue;
-
+        // feed must contain url for updating. all other elements
+        // are optional. if no xml then we try to download the
+        // feed from the specified url. if no img then we try to
+        // download the image from the url specified in the feed.
         urlNode = itemNode.namedItem("url");
         if (urlNode.isNull() || !urlNode.isElement()) continue;
 
         urlStr = urlNode.toElement().text();
         if (urlStr.isEmpty()) continue;
 
+        xmlStr = "";
+        xmlNode = itemNode.namedItem("xml");
+        if (!xmlNode.isNull() && xmlNode.isElement()) {
+            xmlStr = xmlNode.toElement().text();
+            if (!xmlStr.isEmpty()) {
+                finfo.setFile(tr("%1%2%3").arg(feedsPath).arg(sep).arg(xmlStr));
+                if (!finfo.exists()) xmlStr = "";
+            }
+        }
+        
         imgStr = "";
         imgNode = itemNode.namedItem("img");
         if (!imgNode.isNull() && imgNode.isElement()) {
@@ -395,6 +424,29 @@ void lightrss::loadFeeds()
         }
 
         catalogList << (QStringList() << xmlStr << urlStr << imgStr << tplStr);
+
+        // if the xml file name is not specified or if the xml file
+        // doesn't exist then we end up with an empty string. we
+        // know that we have a url because the loop would have
+        // continued above if it wasn't found. save the feed url
+        // here and assign it the newly created list index.
+        if (xmlStr.isEmpty()) {
+            lastFeed = catalogList.length() - 1;
+            // downloads are started after constructor has returned
+            startupQueue << (QVariantList() << lastFeed << urlStr);
+            
+            // check for iurl element to enable package maintainers
+            // to include default catalog with image urls that are
+            // not found in original rss feeds.
+            iurlStr = "";
+            iurlNode = itemNode.namedItem("iurl");
+            if (!iurlNode.isNull() && iurlNode.isElement()) {
+                iurlStr = iurlNode.toElement().text();
+                if (!iurlStr.isEmpty()) {
+                    startupQueue << (QVariantList() << lastFeed << iurlStr);
+                }
+            }
+        }
     }
 
     loadFeedTable();
@@ -529,6 +581,7 @@ void lightrss::connectEvents()
     connect(itemTable, SIGNAL(itemSelectionChanged()), this, SLOT(selectItem()));
     connect(feedTable, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(feedMenuRequested(QPoint)));
     connect(itemTable, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(itemMenuRequested(QPoint)));
+    connect(titleLabel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(titleMenuRequested(QPoint)));
     connect(backAction, SIGNAL(triggered()), this, SLOT(showFeeds()));
     connect(addFeedAction, SIGNAL(triggered()), this, SLOT(addFeed()));
     connect(refreshImageAction, SIGNAL(triggered()), this, SLOT(refreshImage()));
@@ -571,7 +624,7 @@ void lightrss::addImageFile()
     QString fileName = QFileDialog::getOpenFileName(this,
                                                     tr("Select image"),
                                                     imagesPath,
-                                                    tr("Images (*.png *.gif *.jpg *.jpeg)"));
+                                                    tr("Images (*.png *.gif *.jpg *.jpeg *.svg)"));
 
     if (fileName.isNull() || fileName.isEmpty()) return;
 
@@ -703,14 +756,11 @@ void lightrss::startDownload(const QString &urlStr, int index)
 
 void lightrss::trackDownload(QString url, int index)
 {
-    // the only downloads where we are supplying the
-    // feed index will be images.
     if (index > -1) {
         downloadTracker << (QVariantList() << index << url);
         return;
     }
 
-    // if we made it this far we know it's not an image.
     // if we don't find the url in the catalogList then
     // it's either a new feed or an unsupported file.
     for (int i = 0; i < catalogList.length(); i++) {
@@ -729,9 +779,9 @@ int lightrss::getFeedIndex(QString url)
     return -1;
 }
 
-QString lightrss::getTempFileName(const QUrl &url)
+QString lightrss::getTempFileName(const QString &fname)
 {
-    QString basename = url.fileName();
+    QString basename = fname;
 
     if (basename.isEmpty()) basename = "download";
 
@@ -799,11 +849,12 @@ QString lightrss::prepFeedTitle(const QString &title)
     return xmlNameStr;
 }
 
-bool lightrss::saveToDisk(const QString &path, QIODevice *data)
+bool lightrss::saveToDisk(const QString &fname, QIODevice *data)
 {
-    QFile file(path);
+    QString tFpath = tr("%1%2%3").arg(tempPath).arg(sep).arg(fname);
+    QFile file(tFpath);
     if (!file.open(QFile::WriteOnly | QFile::Truncate)) {
-        qDebug() << tr("Could not open file for writing!") << path << file.errorString();
+        qDebug() << "Could not open file for writing!" << tFpath << file.errorString();
         return 0;
     }
 
@@ -908,172 +959,173 @@ QString lightrss::extractFeedUrl(QNetworkReply *reply)
 
 void lightrss::downloadFinished(QNetworkReply *reply)
 {
-    bool isError = 0, isImage = 0, isOldFile = 0;
-    int prevTotal, index = -1;
-    QString mime, filename, feedTitle, feedUrl;
+    bool isOldFile;
+    int prevTotal, dtype, index, fIndex;
+    QString pFname, mime, feedUrl, tFname, tFpath, pFpath;
+    
     QUrl url = reply->url();
-
-    if (reply->error()) {
-        isError = 1;
-        qDebug() << tr("Download of %1 failed: %2").arg(url.toString()).arg(reply->errorString());
-    }
-
-    if (!isError) {
-        isError = isHttpRedirect(reply);
-        if (isError) {
-            qDebug() << "Request was redirected.";
-        }
-    }
-
-    if (!isError) {
-        mime = reply->header(QNetworkRequest::ContentTypeHeader).toString();
-        isError = mime.isNull() || mime.isEmpty();
-        if (isError) {
-            qDebug() << "No mime type returned!";
-        } else {
-            mime = mime.toLower();
-            mime = mime.remove(QRegExp(";.*$"));
-            qDebug() << url.toString() << mime;
-        }
-    }
-
     QFileInfo finfo(url.fileName());
     QString fext = finfo.suffix().toLower();
 
-    if (acceptedXmlTypes.contains(mime) ||
-        acceptedXmlExtensions.contains(fext)) {
-        isImage = 0;
-    } else if (acceptedImgTypes.contains(mime) ||
-               acceptedImgExtensions.contains(fext)) {
-        isImage = 1;
-    } else if (mime == "text/javascript") {
-        isError = 1;
+    if (reply->error()) {
+        qDebug() << "Download failed!" << url.toString() << reply->errorString();
+        return closeDownload(reply);
+    }
 
-        // itunes lookup results are returned as json.
-        // extract feedURL and replace url in text box
+    if (isHttpRedirect(reply)) {
+        qDebug() << "Request redirected!";
+        return closeDownload(reply);
+    }
+
+    mime = reply->header(QNetworkRequest::ContentTypeHeader).toString();
+    if (mime.isNull() || mime.isEmpty()) {
+        qDebug() << "Mime type is empty!";
+        return closeDownload(reply);
+    }
+    
+    mime = mime.toLower();
+    mime = mime.remove(QRegExp(";.*$"));
+    qDebug() << url.toString() << mime;
+
+    // itunes lookup results are returned as json.
+    // extract feedURL and replace url in text box.
+    if (mime == "text/javascript") {
         feedUrl = extractFeedUrl(reply);
-
         if (!feedUrl.isEmpty()) {
             qDebug() << "itunes url converted!";
             urlTextBox->setText(feedUrl);
             startDownload(feedUrl);
         }
+        return closeDownload(reply);
+    }
+    
+    if (acceptedXmlTypes.contains(mime) ||
+        acceptedXmlExtensions.contains(fext)) {
+        dtype = Feed;
+    } else if (acceptedImgTypes.contains(mime) ||
+               acceptedImgExtensions.contains(fext)) {
+        dtype = Image;
     } else {
-        isError = 1;
         qDebug() << "Unknown mime type detected!";
+        return closeDownload(reply);
     }
 
-    if (!isError) {
-        filename = getTempFileName(url);
-        isError = !saveToDisk(tr("%1%2%3").arg(tempPath).arg(sep).arg(filename), reply);
-        if (isError) {
-            qDebug() << tr("Cannot save %1 to disk!").arg(filename);
-        }
+    tFname = getTempFileName(url.fileName());
+    if (!saveToDisk(tFname, reply)) {
+        qDebug() << "Save to disk failed!" << tFname;
+        return closeDownload(reply);
     }
 
-    if (!isError) {
-        index = getFeedIndex(url.toString());
-        if (index > -1) {
-            // feed already exists and we're updating xml or image
-            if (!isImage) {
-                feedTitle = getFeedXml(index);
-            } else {
-                feedTitle = getFeedImg(index);
-                if (feedTitle.isEmpty()) {
-                    // we're downloading the image for the first time
-                    feedTitle = getFeedXml(index);
-                }
-                if (!feedTitle.isEmpty()) {
-                    // preserve file extension from url
-                    finfo.setFile(feedTitle);
-                    feedTitle = tr("%1.%2").arg(finfo.baseName()).arg(fext);
-                }
-            }
-        } else {
-            // feed doesn't exist
-            if (!isImage) {
-                feedTitle = getFeedTitle(tr("%1%2%3").arg(tempPath).arg(sep).arg(filename));
-                if (!feedTitle.isEmpty()) {
-                    feedTitle = feedTitle.append(".xml");
-                }
-            } else {
-                // why are we downloading an image for a feed that
-                // doesn't exist?
-                qDebug() << "Image is not associated with any existing feed!" << url.toString();
-            }
-        }
+    tFpath = tr("%1%2%3").arg(tempPath).arg(sep).arg(tFname);
 
-        isError = feedTitle.isEmpty();
-        if (isError) {
-            qDebug() << "Cannot find feed title!";
+    index = getFeedIndex(url.toString());
+
+    // steps to determining the image file name:
+    // 1. try to get existing name from <img> element
+    // 2. try to get existing name from <xml> element
+    // 3. use file name from url
+
+    // steps to determining the xml file name:
+    // 1. try to get existing name from <xml> element
+    // 2. try to get title from xml source in tFpath
+
+    if (dtype == Image) {
+        if (index < 0) {
+            // why are we downloading an image for a feed that doesn't exist?
+            qDebug() << "Image is not associated with any existing feed!" << url.toString();
+            return closeDownload(reply);
         }
+        // should return previous image file name if this is an image update
+        pFname = getFeedImg(index);
     }
 
-    if (!isError) {
-        QFile oldFile;
-        if (!isImage) {
-            oldFile.setFileName(tr("%1%2%3").arg(feedsPath).arg(sep).arg(feedTitle));
-        } else {
-            oldFile.setFileName(tr("%1%2%3").arg(imagesPath).arg(sep).arg(feedTitle));
-        }
-        isOldFile = oldFile.exists();
-        if (isOldFile) {
-            isError = !oldFile.remove();
-            if (isError) {
-                qDebug() << "Cannot delete old file!";
-            }
+    if (pFname.isEmpty()) {
+        // either no image file name was found or this is a feed update.
+        // the xml file name is the backup image file name so there's no
+        // need to test dtype here.
+        pFname = getFeedXml(index);
+    }
+
+    if (dtype == Feed) {
+        if (pFname.isEmpty()) {
+            // the xml file name is missing so we try to generate file name
+            // from the title element in the downloaded xml file.
+            pFname = getFeedTitle(tFpath);
         }
     }
 
-    if (!isError) {
-        if (!isImage) {
-            isError = !QFile::rename(tr("%1%2%3").arg(tempPath).arg(sep).arg(filename),
-                                     tr("%1%2%3").arg(feedsPath).arg(sep).arg(feedTitle));
-        } else {
-            isError = !QFile::rename(tr("%1%2%3").arg(tempPath).arg(sep).arg(filename),
-                                     tr("%1%2%3").arg(imagesPath).arg(sep).arg(feedTitle));
+    if (pFname.isEmpty()) {
+        // catalog does not contain an img or xml file name and
+        // feed title extraction was unsuccessful.
+        if (dtype == Feed) {
+            qDebug() << "Cannot retrieve file name!" << url.toString();
+            return closeDownload(reply);
         }
-        if (isError) {
-            qDebug() << "Cannot rename updated file!";
-        }
+        pFname = tFname;
+    }
+    
+    // preserve file extension from url if image
+    finfo.setFile(pFname);
+    pFname = tr("%1.%2").arg(finfo.baseName()).arg((dtype == Image) ? fext : "xml");
+
+    pFpath = tr("%1%2%3").arg((dtype == Image) ? imagesPath : feedsPath).arg(sep).arg(pFname);
+    
+    QFile oldFile;
+    oldFile.setFileName(pFpath);
+    isOldFile = oldFile.exists() && index > -1;
+    if (oldFile.exists() && !oldFile.remove()) {
+        qDebug() << "Cannot delete old file!" << pFpath;
+        return closeDownload(reply);
     }
 
-    if (!isError && isImage) {
-        updateThumbnail(feedTitle, index);
+    if (!QFile::rename(tFpath, pFpath)) {
+        qDebug() << "Cannot rename file!" << tFpath << pFpath;
+        return closeDownload(reply);
     }
 
-    if (!isError && !isImage && isOldFile) {
+    if (dtype == Image) {
+        if (setFeedImg(index, pFname)) updateThumbnail(pFname, index);
+        return closeDownload(reply);
+    }
+
+    if (isOldFile) {
         if (tableStack->currentIndex() == 1) {
             // refresh item table if it's already visible and
             // its feed has just completed an update.
             QTableWidgetItem *ftwi = feedTable->currentItem();
-            int fIndex = ftwi->data(IdRole).toInt();
-            if (fIndex == index) {
-                selectFeed(ftwi);
-            }
+            fIndex = ftwi->data(IdRole).toInt();
+            if (fIndex == index) selectFeed(ftwi);
         }
+        return closeDownload(reply);
     }
 
-    if (!isError && !isImage && !isOldFile) {
+    if (index > -1) {
+        if (!setFeedXml(index, pFname)) {
+            qDebug() << "Can't update catalog with feed file name!" << pFname << url.toString();
+            return closeDownload(reply);
+        }
+    } else {
         prevTotal = catalogList.length();
-        index = createCatalogEntry(feedTitle, url.toString());
-        isError = (index < 0 || prevTotal == catalogList.length());
-        if (isError) {
-            qDebug() << "Cannot update catalog with new feed!";
+        index = createCatalogEntry(pFname, url.toString());
+        if (index < 0 || prevTotal == catalogList.length()) {
+            qDebug() << "Cannot update catalog with new feed!" << pFname << url.toString();
+            return closeDownload(reply);
         }
     }
 
-    if (!isError && !isImage && !isOldFile) {
-        QTableWidgetItem *thumbnail = createFeedTableItem(index);
-        isError = !thumbnail;
-        if (isError) {
-            qDebug() << "Cannot create new table item!";
-        } else {
-            feedTable->insertThumbnail(thumbnail);
-            refreshImage(index);
-        }
+    QTableWidgetItem *thumbnail = createFeedTableItem(index);
+    if (!thumbnail) {
+        qDebug() << "Cannot create new table item!";
+        return closeDownload(reply);
     }
+    
+    feedTable->insertThumbnail(thumbnail);
+    refreshImage(index);
+    closeDownload(reply);
+}
 
+void lightrss::closeDownload(QNetworkReply *reply)
+{
     currentDownloads.removeAll(reply);
     reply->deleteLater();
 
@@ -1084,7 +1136,7 @@ void lightrss::downloadFinished(QNetworkReply *reply)
         statusbar->showMessage(tr("%1 download%2 remaining").
                                arg(QString::number(currentDownloads.length())).
                                arg((currentDownloads.length() > 1) ? "s" : ""), 10000);
-        stopTracking(url.toString());
+        stopTracking(reply->url().toString());
     }
 }
 
@@ -1101,8 +1153,6 @@ void lightrss::stopTracking(QString url)
 void lightrss::updateThumbnail(const QString &feedTitle, int index)
 {
     if (index < 0) return;
-
-    if (!setFeedImg(index, feedTitle)) return;
 
     int twiIndex;
     bool loaded;
@@ -1124,6 +1174,11 @@ void lightrss::updateThumbnail(const QString &feedTitle, int index)
             return;
         }
     }
+}
+
+void lightrss::titleMenuRequested(QPoint pos)
+{
+    titleContextMenu->popup(titleLabel->mapToGlobal(pos));
 }
 
 void lightrss::feedMenuRequested(QPoint pos)
@@ -1485,12 +1540,18 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
     descBrowser->clear();
 
     int row;
-    QString xmlStr, feedTitleStr, itemTitleStr, dateStr;
+    QString xmlStr, urlStr, feedTitleStr, itemTitleStr, dateStr;
     QDateTime dt;
 
     xmlStr = getFeedXml(fIndex);
     if (xmlStr.isEmpty()) {
         qDebug() << "xml filename is not specified";
+        return;
+    }
+
+    urlStr = getFeedUrl(fIndex);
+    if (urlStr.isEmpty()) {
+        qDebug() << "feed url is not specified";
         return;
     }
 
@@ -1523,6 +1584,7 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
     }
 
     titleLabel->setText(feedTitleStr);
+    titleLabel->setStatusTip(urlStr);
 
     feedItems = doc.elementsByTagName("item");
 
@@ -1550,9 +1612,11 @@ void lightrss::selectFeed(QTableWidgetItem *twi)
         }
     }
 
-    itemTable->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
-    backAction->setDisabled(0);
-    tableStack->setCurrentIndex(1);
+    if (tableStack->currentIndex() < 1) {
+        itemTable->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
+        backAction->setDisabled(0);
+        tableStack->setCurrentIndex(1);
+    }
 }
 
 void lightrss::showFeeds()

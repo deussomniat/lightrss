@@ -92,6 +92,7 @@ public:
     lightrss(QWidget *parent = nullptr);
     ~lightrss();
     enum DataRoles { IdRole = 0x0101 };
+    enum DownloadRoles { Feed = 0, Image, Itunes };
     enum MapRoles { FeedTitle = 0, FeedImage, ItemTitle,
                     ItemDate, ItemWebpage, ItemDownload,
                     ItemSize, ItemDuration, ItemDescription };
@@ -118,6 +119,8 @@ private:
     QList<QStringList> catalogList;
     // [0] = index, [1] = url
     QList<QVariantList> downloadTracker;
+    // [0] = index, [1] = url
+    QList<QVariantList> startupQueue;
 
     QStringList mapList;
     QList<Template> templates;
@@ -148,6 +151,7 @@ private:
 
     QMenu *feedContextMenu;
     QMenu *itemContextMenu;
+    QMenu *titleContextMenu;
 
     QLabel *titleLabel;
     QLabel *linkLabel;
@@ -173,6 +177,7 @@ private:
     void importSettings();
     void loadTemplate(QString tpl);
     void stopTracking(QString url);
+    void closeDownload(QNetworkReply *reply);
     void trackDownload(QString url, int index = -1);
     void updateThumbnail(const QString &feedTitle, int index = -1);
     void startDownload(const QString &urlStr, int index = -1);
@@ -183,7 +188,7 @@ private:
     bool setFeedUrl(int index, QString value);
     bool setFeedImg(int index, QString value);
     bool setFeedTpl(int index, QString value);
-    bool saveToDisk(const QString &path, QIODevice *data);
+    bool saveToDisk(const QString &fname, QIODevice *data);
 
     int getFeedIndex(QString url);
     int getTemplateIndex(QString tpl);
@@ -193,7 +198,7 @@ private:
     QString getFeedXml(int index);
     QString getFeedImg(int index);
     QString getFeedTpl(int index);
-    QString getTempFileName(const QUrl &url);
+    QString getTempFileName(const QString &fname);
     QString convertDuration(QString duration);
     QString prepFeedTitle(const QString &title);
     QString extractFeedUrl(QNetworkReply *reply);
@@ -211,6 +216,7 @@ private slots:
     void copyFeedUrl();
     void copyItemUrl();
     void refreshFeed();
+    void processQueue();
     void updateAllFeeds();
     void copyEnclosureUrl();
     void addImageFile();
@@ -220,6 +226,7 @@ private slots:
     void refreshImage(int fIndex = -1);
     void feedMenuRequested(QPoint pos);
     void itemMenuRequested(QPoint pos);
+    void titleMenuRequested(QPoint pos);
     void selectFeed(QTableWidgetItem *twi = nullptr);
     void downloadFinished(QNetworkReply *reply);
     void downloadError(QNetworkReply::NetworkError code);
