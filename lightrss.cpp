@@ -200,6 +200,7 @@ void lightrss::createWidgets()
     feedTable->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
     feedTable->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     feedTable->setFixedWidth(1046);
+    feedTable->setMinimumHeight(206);
 
     titleLabel = new QLabel;
     titleLabel->setStyleSheet("QLabel { font-size: 18px; font-weight: 700; }");
