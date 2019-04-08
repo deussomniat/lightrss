@@ -90,7 +90,7 @@ lightrss::lightrss(QWidget *parent)
     setMinimumWidth(1060);
     setMinimumHeight(485);
     setWindowTitle("lightrss");
-    setWindowIcon(QIcon(":/images/rss48.png"));
+    setWindowIcon(QIcon(":/images/lightrss.png"));
 
     // save any urls that were passed to the app
     QStringList urls = qApp->arguments();

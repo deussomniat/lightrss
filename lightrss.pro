@@ -53,7 +53,16 @@ HEADERS += lightrss.h \
 
 RESOURCES += lightrss.qrc
 
-# Default rules for deployment.
-qnx: target.path = /tmp/$${TARGET}/bin
-else: unix:!android: target.path = /usr/bin
-!isEmpty(target.path): INSTALLS += target
+unix:!android: {
+    target.path = /usr/bin
+    desktop.path = /usr/share/applications
+    icon.path = /usr/share/icons/hicolor/48x48/apps
+    desktop.files = $${PWD}/resources/$${TARGET}.desktop
+    icon.files = $${PWD}/images/$${TARGET}.png
+}
+
+!isEmpty(target.path): {
+    INSTALLS += target
+    INSTALLS += desktop
+    INSTALLS += icon
+}
