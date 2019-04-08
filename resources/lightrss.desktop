@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=lightrss
+Comment=A simple qt based rss feed reader
+Exec=lightrss
+Icon=lightrss
+StartupNotify=false
+Terminal=false
+Type=Application
+Categories=Qt;Network;
