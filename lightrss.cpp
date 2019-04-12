@@ -774,8 +774,17 @@ void lightrss::trackDownload(QString url, int index)
 
 int lightrss::getFeedIndex(QString url)
 {
+    // it's possible that a feed or image may be redirected
+    // from http to https. we need to compare the url
+    // without using the protocol.
+    QStringList urlList1, urlList2;
     for (int i = 0; i < downloadTracker.length(); i++) {
-        if (url == downloadTracker[i][1].toString()) return downloadTracker[i][0].toInt();
+        urlList1.clear();
+        urlList1 = downloadTracker[i][1].toString().split("://");
+        urlList2.clear();
+        urlList2 = url.split("://");
+        if (urlList1.length() < 2 || urlList2.length() < 2) continue;
+        if (urlList1[1] == urlList2[1]) return downloadTracker[i][0].toInt();
     }
     return -1;
 }
@@ -868,8 +877,8 @@ bool lightrss::saveToDisk(const QString &fname, QIODevice *data)
 bool lightrss::isHttpRedirect(QNetworkReply *reply)
 {
     int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    return statusCode == 301 || statusCode == 302 || statusCode == 303
-           || statusCode == 305 || statusCode == 307 || statusCode == 308;
+    return statusCode == 301 || statusCode == 302 || statusCode == 303 ||
+           statusCode == 305 || statusCode == 307 || statusCode == 308;
 }
 
 void lightrss::refreshFeed()
@@ -907,12 +916,12 @@ void lightrss::addFeed()
     // https://itunes.apple.com/lookup?id=329937558
 
     urlStr = urlStr.toLower();
-    QRegExp rx("itunes.apple.com/[^/]+/podcast/");
+    QRegExp rx("itunes.apple.com/[^/]+/podcast/[^/]+/id(\\d+)");
     if (urlStr.contains(rx)) {
         qDebug() << "itunes url detected!";
-        rx.setPattern("/id(\\d+)");
-        if (urlStr.contains(rx) && rx.captureCount() > 0 &&
-            rx.capturedTexts().length() > 1 && !rx.capturedTexts()[1].isEmpty()) {
+        if (rx.captureCount() > 0 &&
+            rx.capturedTexts().length() > 1 &&
+            !rx.capturedTexts()[1].isEmpty()) {
             QString id = rx.capturedTexts()[1];
             qDebug() << tr("using itunes id %1").arg(id);
             urlStr = tr("https://itunes.apple.com/lookup?id=%1").arg(id);
