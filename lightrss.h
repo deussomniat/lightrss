@@ -188,6 +188,7 @@ private:
     bool setFeedUrl(int index, QString value);
     bool setFeedImg(int index, QString value);
     bool setFeedTpl(int index, QString value);
+    bool urlCompare(QString url1, QString url2);
     bool saveToDisk(const QString &fname, QIODevice *data);
 
     int getFeedIndex(QString url);

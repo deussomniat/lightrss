@@ -765,26 +765,44 @@ void lightrss::trackDownload(QString url, int index)
     // if we don't find the url in the catalogList then
     // it's either a new feed or an unsupported file.
     for (int i = 0; i < catalogList.length(); i++) {
-        if (url == catalogList[i][1]) {
+        if (urlCompare(catalogList[i][1], url)) {
             downloadTracker << (QVariantList() << i << url);
             break;
         }
     }
 }
 
-int lightrss::getFeedIndex(QString url)
+void lightrss::stopTracking(QString url)
+{
+    for (int i = 0; i < downloadTracker.length(); i++) {
+        if (urlCompare(downloadTracker[i][1].toString(), url)) {
+            downloadTracker.removeAt(i);
+            break;
+        }
+    }
+}
+
+bool lightrss::urlCompare(QString url1, QString url2)
 {
     // it's possible that a feed or image may be redirected
-    // from http to https. we need to compare the url
-    // without using the protocol.
+    // from http to https. we use this method to compare the
+    // urls without the protocol.
     QStringList urlList1, urlList2;
+    urlList1 = url1.split("://");
+    urlList2 = url2.split("://");
+    return (urlList1.length() == 2 &&
+            !urlList1[1].isEmpty() &&
+            urlList2.length() == 2 &&
+            !urlList2[1].isEmpty() &&
+            urlList1[1] == urlList2[1]);
+}
+
+int lightrss::getFeedIndex(QString url)
+{
     for (int i = 0; i < downloadTracker.length(); i++) {
-        urlList1.clear();
-        urlList1 = downloadTracker[i][1].toString().split("://");
-        urlList2.clear();
-        urlList2 = url.split("://");
-        if (urlList1.length() < 2 || urlList2.length() < 2) continue;
-        if (urlList1[1] == urlList2[1]) return downloadTracker[i][0].toInt();
+        if (urlCompare(downloadTracker[i][1].toString(), url)) {
+            return downloadTracker[i][0].toInt();
+        }
     }
     return -1;
 }
@@ -1147,16 +1165,6 @@ void lightrss::closeDownload(QNetworkReply *reply)
                                arg(QString::number(currentDownloads.length())).
                                arg((currentDownloads.length() > 1) ? "s" : ""), 10000);
         stopTracking(reply->url().toString());
-    }
-}
-
-void lightrss::stopTracking(QString url)
-{
-    for (int i = 0; i < downloadTracker.length(); i++) {
-        if (downloadTracker[i][1].toString() == url) {
-            downloadTracker.removeAt(i);
-            break;
-        }
     }
 }
 
