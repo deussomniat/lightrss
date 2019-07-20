@@ -32,7 +32,7 @@ Template::Template(QString tpl)
 lightrss::lightrss(QWidget *parent)
     : QMainWindow(parent)
 {
-    userAgent = "lightrss/0.4";
+    userAgent = "lightrss/0.4.1";
 
     acceptedXmlTypes << "application/rss+xml" << "application/x-rss+xml"
                      << "application/rdf+xml" << "application/x-rdf+xml"
@@ -934,7 +934,7 @@ void lightrss::addFeed()
     // https://itunes.apple.com/lookup?id=329937558
 
     urlStr = urlStr.toLower();
-    QRegExp rx("itunes.apple.com/[^/]+/podcast/[^/]+/id(\\d+)");
+    QRegExp rx("\\.apple\\.com/[^/]+/podcast/[^/]+/id(\\d+)");
     if (urlStr.contains(rx)) {
         qDebug() << "itunes url detected!";
         if (rx.captureCount() > 0 &&
